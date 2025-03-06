@@ -11,7 +11,6 @@ pub use tensor::{StorageTensor, Tensor};
 
 pub trait Backend {
     type Byte;
-    type Queue<'q>;
 }
 
 pub trait LayoutManager<A> {
