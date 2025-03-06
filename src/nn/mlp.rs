@@ -1,8 +1,7 @@
-use crate::{Backend, LayoutManager, MemManager, StorageTensor, Tensor, split};
-use digit_layout::DigitLayout;
+use super::activation::{self, Activation, Type};
+use crate::{Backend, LayoutManager, MemManager, MemManagerExt, StorageTensor, Tensor, split};
 
 pub struct Mlp {
-    activation: MlpExtra,
     y: Tensor,
     x: Tensor,
     mid: Tensor,
@@ -10,28 +9,16 @@ pub struct Mlp {
     up_bias: Option<Tensor>,
     down: Tensor,
     down_bias: Option<Tensor>,
+    act: Activation,
     residual: bool,
-}
-
-enum MlpExtra {
-    SwiGLU { gate: Tensor, up: Tensor },
-    GeLU,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Meta {
-    ty: Type,
-    dt: DigitLayout,
+    act: activation::Meta,
     d: usize,
-    di: usize,
     up_bias: bool,
     down_bias: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum Type {
-    SwiGLU,
-    Gelu,
 }
 
 #[derive(Clone, Copy)]
@@ -46,25 +33,30 @@ pub enum Arg {
 }
 
 impl Meta {
-    pub fn build(&self, env: &impl LayoutManager<Arg>, batch_size: usize, residual: bool) -> Mlp {
+    pub fn build<Env>(&self, env: &mut Env, batch_size: usize, residual: bool) -> Mlp
+    where
+        Env: LayoutManager<Arg> + LayoutManager<activation::Arg>,
+    {
         let &Self {
-            ty,
-            dt,
+            act,
             d,
-            di,
             up_bias,
             down_bias,
         } = self;
 
-        let (mid, extra) = match ty {
+        let activation::Meta { ty, dt, di } = act;
+        let (mid, act) = match ty {
             Type::SwiGLU => {
                 let mid = Tensor::new(dt, &[batch_size, di * 2]);
                 split!(mid => gate, up; [di, di] @ 1);
-                (mid, MlpExtra::SwiGLU { gate, up })
+                env.set_tensor(activation::Arg::Gate, &gate);
+                env.set_tensor(activation::Arg::Up, &up);
+                (mid, act.build(env, batch_size))
             }
-            Type::Gelu => {
+            Type::GeLU => {
                 let mid = Tensor::new(dt, &[batch_size, di]);
-                (mid, MlpExtra::GeLU)
+                env.set_tensor(activation::Arg::Up, &mid);
+                (mid, act.build(env, batch_size))
             }
         };
 
@@ -73,6 +65,7 @@ impl Meta {
         Mlp {
             y: env.tensor(Arg::Y, dt, &shape),
             x: env.tensor(Arg::X, dt, &shape),
+            mid,
 
             up: env.tensor(Arg::Up, dt, &[d, d_up]),
             up_bias: if up_bias {
@@ -94,32 +87,35 @@ impl Meta {
                 None
             },
 
-            mid,
-            activation: extra,
+            act,
             residual,
         }
     }
 }
 
 pub trait Env<B: Backend>: MemManager<Arg, B> {
-    fn rearrange(&self, y: &mut StorageTensor<B>, x: &StorageTensor<B>);
+    fn rearrange(&self, y: &mut StorageTensor, x: &StorageTensor);
     fn mat_mul(
         &self,
-        c: &mut StorageTensor<B>,
+        c: &mut StorageTensor,
         beta: f32,
-        a: &StorageTensor<B>,
-        b: &StorageTensor<B>,
+        a: &StorageTensor,
+        b: &StorageTensor,
         alpha: f32,
     );
-    fn swiglu(&self, gate: &mut StorageTensor<B>, up: &StorageTensor<B>);
-    fn gelu(&self, up: &mut StorageTensor<B>);
-    fn add(&self, y: &mut StorageTensor<B>, x: &StorageTensor<B>);
+    fn swiglu(&self, gate: &mut StorageTensor, up: &StorageTensor);
+    fn gelu(&self, up: &mut StorageTensor);
+    fn add(&self, y: &mut StorageTensor, x: &StorageTensor);
 }
 
 impl Mlp {
-    pub fn launch<B: Backend>(&self, env: impl Env<B>, scale: f32) {
+    pub fn launch<B: Backend, Env_>(&self, env: &Env_, scale: f32)
+    where
+        Env_: Env<B>,
+        Env_: activation::Env<B>,
+    {
         let Self {
-            activation,
+            act: activation,
             y,
             x,
             mid,
@@ -131,7 +127,7 @@ impl Mlp {
         } = self;
 
         let mut x = env.load_tensor_mut(Arg::X, x);
-        let mut mid = env.workspace(mid);
+        let mut mid = <Env_ as MemManagerExt<Arg, B>>::workspace(env, &mid);
         {
             let up = env.load_tensor(Arg::Up, up);
             if let Some(up_bias) = up_bias {
@@ -143,39 +139,26 @@ impl Mlp {
             }
         }
 
-        match activation {
-            MlpExtra::SwiGLU { gate, up } => {
-                let mut gate = StorageTensor {
-                    tensor: gate,
-                    ptr: mid.ptr,
-                };
-                let up = StorageTensor {
-                    tensor: up,
-                    ptr: mid.ptr,
-                };
-                env.swiglu(&mut gate, &up)
-            }
-            MlpExtra::GeLU => env.gelu(&mut mid),
-        }
+        activation.launch(env);
 
         let mut y = env.load_tensor_mut(Arg::Y, &y);
         {
             let down = env.load_tensor(Arg::Down, down);
             if let Some(down_bias) = down_bias {
-                let down_bias = env.load_tensor(Arg::DownBias, down_bias);
-
-                if *residual {
-                    env.rearrange(&mut x, &down_bias);
-                    env.mat_mul(&mut x, scale, &mid, &down, scale);
-                    env.add(&mut y, &x)
-                } else {
-                    env.rearrange(&mut y, &down_bias);
-                    env.mat_mul(&mut y, scale, &mid, &down, scale)
+                {
+                    let x1 = if *residual { &mut x } else { &mut y };
+                    {
+                        let down_bias = env.load_tensor(Arg::DownBias, down_bias);
+                        env.rearrange(x1, &down_bias);
+                    }
+                    env.mat_mul(x1, scale, &mid, &down, scale);
                 }
-            } else if *residual {
-                env.mat_mul(&mut y, 1., &mid, &down, scale)
+                if *residual {
+                    env.add(&mut y, &x)
+                }
             } else {
-                env.mat_mul(&mut y, 0., &mid, &down, scale)
+                let beta = if *residual { 1. } else { 0. };
+                env.mat_mul(&mut y, beta, &mid, &down, scale)
             }
         }
     }

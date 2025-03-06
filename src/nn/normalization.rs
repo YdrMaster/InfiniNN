@@ -1,4 +1,4 @@
-use crate::{Backend, LayoutManager, MemManager, StorageTensor, Tensor};
+use crate::{Backend, LayoutManager, MemManager, MemManagerExt, StorageTensor, Tensor};
 use digit_layout::DigitLayout;
 
 pub enum Normalization {
@@ -62,22 +62,16 @@ impl Meta {
 pub trait Env<B: Backend>: MemManager<Arg, B> {
     fn layer_norm(
         &self,
-        y: &mut StorageTensor<B>,
-        x: &StorageTensor<B>,
-        w: &StorageTensor<B>,
-        b: &StorageTensor<B>,
+        y: &mut StorageTensor,
+        x: &StorageTensor,
+        w: &StorageTensor,
+        b: &StorageTensor,
     );
-    fn rms_norm(
-        &self,
-        y: &mut StorageTensor<B>,
-        x: &StorageTensor<B>,
-        w: &StorageTensor<B>,
-        theta: f32,
-    );
+    fn rms_norm(&self, y: &mut StorageTensor, x: &StorageTensor, w: &StorageTensor, theta: f32);
 }
 
 impl Normalization {
-    pub fn launch<B: Backend>(&self, env: impl Env<B>) {
+    pub fn launch<B: Backend>(&self, env: &impl Env<B>) {
         match self {
             Self::LayerNorm { y, x, w, b } => {
                 let mut y = env.load_tensor_mut(Arg::Y, y);
