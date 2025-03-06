@@ -1,0 +1,9 @@
+[package]
+name = "infini-nn"
+version = "0.0.0"
+edition = "2024"
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+
+[dependencies]
+digit-layout = "0.3"
+ndarray-layout = "0.2"
