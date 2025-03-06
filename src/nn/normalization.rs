@@ -1,4 +1,7 @@
-use crate::{Backend, LayoutManager, MemManager, MemManagerExt, StorageTensor, Tensor};
+use crate::{
+    LayoutManage, MemManage, StorageTensor, Tensor,
+    ext::{LayoutManageExt, MemManageExt},
+};
 use digit_layout::DigitLayout;
 
 pub enum Normalization {
@@ -39,7 +42,7 @@ pub enum Arg {
 }
 
 impl Meta {
-    pub fn build(&self, env: &impl LayoutManager<Arg>, batch_size: usize) -> Normalization {
+    pub fn build(&self, env: &impl LayoutManage, batch_size: usize) -> Normalization {
         let shape_a = [batch_size, self.d];
         let shape_wb = [self.d];
         match self.ty {
@@ -59,31 +62,37 @@ impl Meta {
     }
 }
 
-pub trait Env<B: Backend>: MemManager<Arg, B> {
+pub trait Env: MemManage {
     fn layer_norm(
         &self,
-        y: &mut StorageTensor,
-        x: &StorageTensor,
-        w: &StorageTensor,
-        b: &StorageTensor,
+        y: &mut StorageTensor<Self::B>,
+        x: &StorageTensor<Self::B>,
+        w: &StorageTensor<Self::B>,
+        b: &StorageTensor<Self::B>,
     );
-    fn rms_norm(&self, y: &mut StorageTensor, x: &StorageTensor, w: &StorageTensor, theta: f32);
+    fn rms_norm(
+        &self,
+        y: &mut StorageTensor<Self::B>,
+        x: &StorageTensor<Self::B>,
+        w: &StorageTensor<Self::B>,
+        theta: f32,
+    );
 }
 
 impl Normalization {
-    pub fn launch<B: Backend>(&self, env: &impl Env<B>) {
+    pub fn launch(&self, env: &impl Env) {
         match self {
             Self::LayerNorm { y, x, w, b } => {
-                let mut y = env.load_tensor_mut(Arg::Y, y);
-                let x = env.load_tensor(Arg::X, x);
-                let w = env.load_tensor(Arg::W, w);
-                let b = env.load_tensor(Arg::B, b);
+                let mut y = env.tensor(Arg::Y, y, true);
+                let x = env.tensor(Arg::X, x, false);
+                let w = env.tensor(Arg::W, w, false);
+                let b = env.tensor(Arg::B, b, false);
                 env.layer_norm(&mut y, &x, &w, &b)
             }
             Self::RmsNorm { y, x, w, epsilon } => {
-                let mut y = env.load_tensor_mut(Arg::Y, y);
-                let x = env.load_tensor(Arg::X, x);
-                let w = env.load_tensor(Arg::W, w);
+                let mut y = env.tensor(Arg::Y, y, true);
+                let x = env.tensor(Arg::X, x, false);
+                let w = env.tensor(Arg::W, w, false);
                 env.rms_norm(&mut y, &x, &w, *epsilon)
             }
         }

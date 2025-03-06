@@ -1,39 +1,64 @@
 mod ext;
 mod tensor;
-
-use digit_layout::DigitLayout;
-use ext::MemManagerExt;
-use ndarray_layout::ArrayLayout;
+mod test_recorder;
 
 pub mod nn;
 
+use ndarray_layout::ArrayLayout;
 pub use tensor::{StorageTensor, Tensor};
 
 pub trait Backend {
     type Byte;
 }
 
-pub trait LayoutManager<A> {
-    fn get(&self, which: A) -> (&[isize], isize);
-    fn set(&mut self, which: A, layout: (&[isize], isize));
+pub trait TrapTrace {
+    fn step_in<T: Copy>(&self, ctx: T);
+    fn step_out(&self);
+}
 
-    fn tensor(&self, which: A, dt: DigitLayout, shape: &[usize]) -> Tensor {
-        Tensor {
-            dt,
-            layout: {
-                let (strides, offset) = self.get(which);
-                ArrayLayout::new(shape, strides, offset)
-            },
+pub trait LayoutManage: TrapTrace {
+    fn get<T: Copy>(&self, which: T) -> ArrayLayout<4>;
+    fn set<T: Copy>(&self, which: T, layout: ArrayLayout<4>);
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub enum Ptr<B: Backend> {
+    Host(*const u8),
+    HostMut(*mut u8),
+    Mut(*mut B::Byte),
+    Const(*const B::Byte),
+}
+
+impl<B: Backend> Ptr<B> {
+    pub fn address(&self) -> usize {
+        match *self {
+            Self::Host(ptr) => ptr as _,
+            Self::HostMut(ptr) => ptr as _,
+            Self::Mut(ptr) => ptr as _,
+            Self::Const(ptr) => ptr as _,
         }
-    }
-    fn set_tensor(&mut self, which: A, tensor: &Tensor) {
-        self.set(which, (tensor.layout.strides(), tensor.layout.offset()))
     }
 }
 
-pub trait MemManager<A, B: Backend> {
-    fn malloc(&self, size: usize) -> *mut B::Byte;
-    fn load_mut(&self, which: A) -> *mut B::Byte;
-    fn load(&self, which: A) -> *const B::Byte;
-    fn drop(&self, ptr: *const B::Byte);
+impl<B: Backend> Clone for Ptr<B> {
+    fn clone(&self) -> Self {
+        match *self {
+            Self::Host(ptr) => Self::Host(ptr),
+            Self::HostMut(ptr) => Self::HostMut(ptr),
+            Self::Mut(ptr) => Self::Mut(ptr),
+            Self::Const(ptr) => Self::Const(ptr),
+        }
+    }
+}
+impl<B: Backend> Copy for Ptr<B> {}
+
+pub trait MemManage: TrapTrace {
+    type B: Backend;
+
+    fn push_arg<T: Copy>(&self, which: T, ptr: Ptr<Self::B>);
+    fn pop_arg<T: Copy>(&self, which: T);
+
+    fn malloc(&self, size: usize) -> Ptr<Self::B>;
+    fn load<T: Copy>(&self, which: T, mutable: bool) -> Ptr<Self::B>;
+    fn drop(&self, ptr: Ptr<Self::B>);
 }

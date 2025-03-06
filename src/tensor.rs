@@ -1,29 +1,10 @@
+use crate::{Backend, Ptr};
 use digit_layout::DigitLayout;
 use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 
-#[derive(Clone, Copy)]
-pub struct StorageTensor<'a> {
+pub struct StorageTensor<'a, B: Backend> {
     pub tensor: &'a Tensor,
-    pub ptr: usize,
-    pub mutable: bool,
-}
-
-impl<'a> StorageTensor<'a> {
-    pub fn new_mut<T>(tensor: &'a Tensor, ptr: *mut T) -> Self {
-        Self {
-            tensor,
-            ptr: ptr as _,
-            mutable: true,
-        }
-    }
-
-    pub fn new_const<T>(tensor: &'a Tensor, ptr: *const T) -> Self {
-        Self {
-            tensor,
-            ptr: ptr as _,
-            mutable: false,
-        }
-    }
+    pub ptr: Ptr<B>,
 }
 
 #[derive(Clone)]

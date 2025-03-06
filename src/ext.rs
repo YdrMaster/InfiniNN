@@ -1,83 +1,97 @@
-use crate::{Backend, MemManager, StorageTensor, Tensor};
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use crate::{LayoutManage, MemManage, StorageTensor, Tensor, TrapTrace};
+use digit_layout::DigitLayout;
+use std::ops::{Deref, DerefMut};
 
-pub(crate) trait MemManagerExt<A, B: Backend>: MemManager<A, B> {
-    fn workspace<'t>(&'t self, tensor: &'t Tensor) -> TensorGuard<'t, A, B, Self> {
+pub(crate) trait TrapTraceExt: TrapTrace {
+    fn trap(&self, ctx: impl Copy) -> TrapGuard<Self> {
+        self.step_in(ctx);
+        TrapGuard(self)
+    }
+}
+
+impl<T: TrapTrace> TrapTraceExt for T {}
+
+pub(crate) struct TrapGuard<'a, T: TrapTrace + ?Sized>(&'a T);
+
+impl<T: TrapTrace + ?Sized> Drop for TrapGuard<'_, T> {
+    fn drop(&mut self) {
+        self.0.step_out()
+    }
+}
+
+pub(crate) trait LayoutManageExt: LayoutManage {
+    fn tensor(&self, which: impl Copy, dt: DigitLayout, shape: &[usize]) -> Tensor {
+        let layout = self.get(which);
+        assert_eq!(shape, layout.shape());
+        Tensor { dt, layout }
+    }
+
+    fn set_tensor(&self, which: impl Copy, tensor: &Tensor) {
+        self.set(which, tensor.layout.clone())
+    }
+}
+
+impl<T> LayoutManageExt for T where T: LayoutManage {}
+
+pub(crate) trait MemManageExt: MemManage {
+    fn workspace<'t>(&'t self, tensor: &'t Tensor) -> TensorGuard<'t, Self> {
         let size = tensor.layout.num_elements() * tensor.dt.nbytes();
         let ptr = self.malloc(size);
         TensorGuard {
-            st: StorageTensor::new_mut(tensor, ptr),
+            st: StorageTensor { tensor, ptr },
             mamager: self,
-            phantom: PhantomData,
         }
     }
-    fn load_tensor_mut<'t>(&'t self, which: A, tensor: &'t Tensor) -> TensorGuard<'t, A, B, Self> {
-        let ptr = self.load_mut(which);
+
+    fn tensor<'t>(
+        &'t self,
+        which: impl Copy,
+        tensor: &'t Tensor,
+        mutable: bool,
+    ) -> TensorGuard<'t, Self> {
+        let ptr = self.load(which, mutable);
         TensorGuard {
-            st: StorageTensor::new_mut(tensor, ptr),
+            st: StorageTensor { tensor, ptr },
             mamager: self,
-            phantom: PhantomData,
-        }
-    }
-    fn load_tensor<'t>(&'t self, which: A, tensor: &'t Tensor) -> TensorGuard<'t, A, B, Self> {
-        let ptr = self.load(which);
-        TensorGuard {
-            st: StorageTensor::new_const(tensor, ptr),
-            mamager: self,
-            phantom: PhantomData,
         }
     }
 }
 
-impl<T, A, B> MemManagerExt<A, B> for T
-where
-    T: MemManager<A, B>,
-    B: Backend,
-{
-}
+impl<T: MemManage> MemManageExt for T {}
 
-pub(crate) struct TensorGuard<'a, A, B, M>
+pub(crate) struct TensorGuard<'a, M>
 where
-    B: Backend,
-    M: MemManager<A, B> + ?Sized,
+    M: MemManage + ?Sized,
 {
-    st: StorageTensor<'a>,
+    st: StorageTensor<'a, M::B>,
     mamager: &'a M,
-    phantom: PhantomData<(A, B)>,
 }
 
-impl<'a, A, B, M> Deref for TensorGuard<'a, A, B, M>
+impl<'a, M> Deref for TensorGuard<'a, M>
 where
-    B: Backend,
-    M: MemManager<A, B> + ?Sized,
+    M: MemManage + ?Sized,
 {
-    type Target = StorageTensor<'a>;
+    type Target = StorageTensor<'a, M::B>;
 
     fn deref(&self) -> &Self::Target {
         &self.st
     }
 }
 
-impl<'a, A, B, M> DerefMut for TensorGuard<'a, A, B, M>
+impl<'a, M> DerefMut for TensorGuard<'a, M>
 where
-    B: Backend,
-    M: MemManager<A, B> + ?Sized,
+    M: MemManage + ?Sized,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        assert!(self.st.mutable);
         &mut self.st
     }
 }
 
-impl<A, B, M> Drop for TensorGuard<'_, A, B, M>
+impl<'a, M> Drop for TensorGuard<'a, M>
 where
-    B: Backend,
-    M: MemManager<A, B> + ?Sized,
+    M: MemManage + ?Sized,
 {
     fn drop(&mut self) {
-        self.mamager.drop(self.st.ptr as _)
+        self.mamager.drop(self.st.ptr)
     }
 }
