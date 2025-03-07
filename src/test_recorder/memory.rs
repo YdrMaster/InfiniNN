@@ -23,7 +23,6 @@ struct Internal {
 }
 
 enum Reg {
-    Arg(Box<[u8]>),
     Workspace(usize),
 }
 
@@ -93,16 +92,6 @@ impl TestMemManager {
             .records
             .push(Record::Launch(info))
     }
-
-    pub fn put_arg(&self, which: impl Copy) {
-        let mut key = self.tracer.current();
-        key.extend_from_slice(slice_of(&which));
-
-        let mut internal = self.internal.borrow_mut();
-        let reg = Ptr::Mut(internal.regs.len() as _);
-        internal.regs.push(Reg::Arg(key.clone().into_boxed_slice()));
-        assert!(internal.args.insert(key, reg).is_none())
-    }
 }
 
 impl fmt::Display for TestMemManager {
@@ -112,13 +101,6 @@ impl fmt::Display for TestMemManager {
         for (i, reg) in internal.regs.iter().enumerate() {
             write!(f, "%{i:0wreg$} ")?;
             match reg {
-                Reg::Arg(path) => {
-                    write!(f, "\"")?;
-                    for byte in path {
-                        write!(f, "{:02x}", byte)?;
-                    }
-                    writeln!(f, "\"")?
-                }
                 Reg::Workspace(size) => writeln!(f, "[{size}]")?,
             }
         }

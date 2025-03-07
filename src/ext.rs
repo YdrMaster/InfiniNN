@@ -1,4 +1,4 @@
-use crate::{LayoutManage, MemManage, StorageTensor, Tensor, TrapTrace};
+use crate::{LayoutManage, MemManage, Ptr, StorageTensor, Tensor, TrapTrace};
 use digit_layout::DigitLayout;
 use std::ops::{Deref, DerefMut};
 
@@ -34,6 +34,24 @@ pub(crate) trait LayoutManageExt: LayoutManage {
 impl<T> LayoutManageExt for T where T: LayoutManage {}
 
 pub(crate) trait MemManageExt: MemManage {
+    fn trap_with<T: Copy>(
+        &self,
+        ctx: impl Copy,
+        args: &[(T, Ptr<Self::B>)],
+    ) -> LaunchGuard<T, Self> {
+        self.step_in(ctx);
+        LaunchGuard {
+            arg: args
+                .iter()
+                .map(|&(which, ptr)| {
+                    self.push_arg(which, ptr);
+                    which
+                })
+                .collect(),
+            mamager: self,
+        }
+    }
+
     fn workspace<'t>(&'t self, tensor: &'t Tensor) -> TensorGuard<'t, Self> {
         let size = tensor.layout.num_elements() * tensor.dt.nbytes();
         let ptr = self.malloc(size);
@@ -58,6 +76,28 @@ pub(crate) trait MemManageExt: MemManage {
 }
 
 impl<T: MemManage> MemManageExt for T {}
+
+pub(crate) struct LaunchGuard<'a, T, M>
+where
+    T: Copy,
+    M: MemManage + ?Sized,
+{
+    arg: Vec<T>,
+    mamager: &'a M,
+}
+
+impl<'a, T, M> Drop for LaunchGuard<'a, T, M>
+where
+    T: Copy,
+    M: MemManage + ?Sized,
+{
+    fn drop(&mut self) {
+        for arg in std::mem::take(&mut self.arg) {
+            self.mamager.pop_arg(arg)
+        }
+        self.mamager.step_out()
+    }
+}
 
 pub(crate) struct TensorGuard<'a, M>
 where

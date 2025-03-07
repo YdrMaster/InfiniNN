@@ -98,3 +98,79 @@ impl Normalization {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{Arg, Env, Meta, Type};
+    use crate::{
+        LayoutManage, Ptr, StorageTensor,
+        ext::MemManageExt,
+        test_recorder::{TestLayoutManager, TestMemManager},
+    };
+    use digit_layout::types as ty;
+    use ndarray_layout::{ArrayLayout, Endian::BigEndian};
+
+    impl Env for TestMemManager {
+        fn layer_norm(
+            &self,
+            y: &mut StorageTensor<Self::B>,
+            x: &StorageTensor<Self::B>,
+            w: &StorageTensor<Self::B>,
+            b: &StorageTensor<Self::B>,
+        ) {
+            self.launch(format!(
+                "layer_norm(mut %{}, %{}, %{}, %{})",
+                y.ptr.address(),
+                x.ptr.address(),
+                w.ptr.address(),
+                b.ptr.address(),
+            ));
+        }
+
+        fn rms_norm(
+            &self,
+            y: &mut StorageTensor<Self::B>,
+            x: &StorageTensor<Self::B>,
+            w: &StorageTensor<Self::B>,
+            epsilon: f32,
+        ) {
+            self.launch(format!(
+                "rms_norm(mut %{}, %{}, %{}, {epsilon:.2e})",
+                y.ptr.address(),
+                x.ptr.address(),
+                w.ptr.address(),
+            ));
+        }
+    }
+
+    #[test]
+    fn test() {
+        let meta = Meta {
+            ty: Type::RmsNorm { epsilon: 1e-5 },
+            dt_a: ty::I16,
+            dt_w: ty::F32,
+            d: 2048,
+        };
+        let a = ArrayLayout::new_contiguous(&[7, 2048], BigEndian, 2);
+        let w = ArrayLayout::new_contiguous(&[2048], BigEndian, 2);
+
+        let mut lm = TestLayoutManager::default();
+        lm.set(Arg::Y, a.clone());
+        lm.set(Arg::X, a);
+        lm.set(Arg::W, w);
+        let act = meta.build(&mut lm, 7);
+
+        let mm = TestMemManager::default();
+        let _trap = mm.trap_with(
+            (),
+            &[
+                (Arg::Y, Ptr::Mut(0 as _)),
+                (Arg::X, Ptr::Const(1 as _)),
+                (Arg::W, Ptr::Const(2 as _)),
+            ],
+        );
+        act.launch(&mm);
+
+        println!("{mm}")
+    }
+}

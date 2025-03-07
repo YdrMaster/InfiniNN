@@ -136,12 +136,9 @@ impl Mlp {
         }
 
         {
-            let _trap = env.trap(Sub {});
-            env.push_arg(activation::Arg::Gate, mid.ptr);
-            env.push_arg(activation::Arg::Up, mid.ptr);
+            use activation::Arg as Act;
+            let _trap = env.trap_with(Sub {}, &[(Act::Gate, mid.ptr), (Act::Up, mid.ptr)]);
             activation.launch(env);
-            env.pop_arg(activation::Arg::Gate);
-            env.pop_arg(activation::Arg::Up);
         }
 
         let mut y = env.tensor(Arg::Y, &y, true);
@@ -171,7 +168,8 @@ impl Mlp {
 mod test {
     use super::{Arg, Env, Meta, Type, activation};
     use crate::{
-        LayoutManage, StorageTensor,
+        LayoutManage, Ptr, StorageTensor,
+        ext::MemManageExt,
         test_recorder::{TestLayoutManager, TestMemManager},
     };
     use digit_layout::types as ty;
@@ -236,11 +234,15 @@ mod test {
         let act = meta.build(&mut lm, 7, true);
 
         let mm = TestMemManager::default();
-
-        mm.put_arg(Arg::Y);
-        mm.put_arg(Arg::X);
-        mm.put_arg(Arg::Up);
-        mm.put_arg(Arg::Down);
+        let _trap = mm.trap_with(
+            (),
+            &[
+                (Arg::Y, Ptr::Mut(0 as _)),
+                (Arg::X, Ptr::Mut(1 as _)),
+                (Arg::Up, Ptr::Const(2 as _)),
+                (Arg::Down, Ptr::Const(3 as _)),
+            ],
+        );
         act.launch(&mm, 1.);
 
         println!("{mm}")

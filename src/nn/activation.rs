@@ -69,7 +69,8 @@ impl Activation {
 mod test {
     use super::{Arg, Env, Meta, Type};
     use crate::{
-        LayoutManage, StorageTensor,
+        LayoutManage, Ptr, StorageTensor,
+        ext::MemManageExt,
         test_recorder::{TestLayoutManager, TestMemManager},
     };
     use digit_layout::types as ty;
@@ -104,9 +105,10 @@ mod test {
         let act = meta.build(&mut lm, 7);
 
         let mm = TestMemManager::default();
-
-        mm.put_arg(Arg::Gate);
-        mm.put_arg(Arg::Up);
+        let _trap = mm.trap_with(
+            (),
+            &[(Arg::Gate, Ptr::Mut(0 as _)), (Arg::Up, Ptr::Const(1 as _))],
+        );
         act.launch(&mm);
 
         println!("{mm}")
