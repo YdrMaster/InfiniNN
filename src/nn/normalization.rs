@@ -154,11 +154,11 @@ mod test {
         let a = ArrayLayout::new_contiguous(&[7, 2048], BigEndian, 2);
         let w = ArrayLayout::new_contiguous(&[2048], BigEndian, 2);
 
-        let mut lm = TestLayoutManager::default();
+        let lm = TestLayoutManager::default();
         lm.set(Arg::Y, a.clone());
         lm.set(Arg::X, a);
         lm.set(Arg::W, w);
-        let act = meta.build(&mut lm, 7);
+        let act = meta.build(&lm, 7);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(

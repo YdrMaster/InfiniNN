@@ -99,10 +99,10 @@ mod test {
         };
         let layout = ArrayLayout::new_contiguous(&[7, 2048], BigEndian, 2);
 
-        let mut lm = TestLayoutManager::default();
+        let lm = TestLayoutManager::default();
         lm.set(Arg::Gate, layout.clone());
         lm.set(Arg::Up, layout);
-        let act = meta.build(&mut lm, 7);
+        let act = meta.build(&lm, 7);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(

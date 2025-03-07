@@ -86,7 +86,7 @@ where
     mamager: &'a M,
 }
 
-impl<'a, T, M> Drop for LaunchGuard<'a, T, M>
+impl<T, M> Drop for LaunchGuard<'_, T, M>
 where
     T: Copy,
     M: MemManage + ?Sized,
@@ -118,7 +118,7 @@ where
     }
 }
 
-impl<'a, M> DerefMut for TensorGuard<'a, M>
+impl<M> DerefMut for TensorGuard<'_, M>
 where
     M: MemManage + ?Sized,
 {
@@ -127,7 +127,7 @@ where
     }
 }
 
-impl<'a, M> Drop for TensorGuard<'a, M>
+impl<M> Drop for TensorGuard<'_, M>
 where
     M: MemManage + ?Sized,
 {

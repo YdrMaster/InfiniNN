@@ -9,7 +9,8 @@ use crate::{
 pub struct Mlp {
     y: Tensor,
     x: Tensor,
-    mid: Tensor,
+    mid_up: Tensor,
+    mid_down: Tensor,
     up: Tensor,
     up_bias: Option<Tensor>,
     down: Tensor,
@@ -51,31 +52,33 @@ impl Meta {
         let activation::Meta { ty, dt, di } = act;
 
         let trap = env.trap(Sub {});
-        let (mid, act) = match ty {
+        let (mid_up, mid_down, act) = match ty {
             Type::SwiGLU => {
                 let mid = Tensor::new(dt, &[batch_size, di * 2]);
                 split!(mid => gate, up; [di, di] @ 1);
                 env.set_tensor(activation::Arg::Gate, &gate);
                 env.set_tensor(activation::Arg::Up, &up);
-                (mid, act.build(env, batch_size))
+                (mid, gate, act.build(env, batch_size))
             }
             Type::GeLU => {
                 let mid = Tensor::new(dt, &[batch_size, di]);
                 env.set_tensor(activation::Arg::Up, &mid);
-                (mid, act.build(env, batch_size))
+                (mid.clone(), mid, act.build(env, batch_size))
             }
         };
         drop(trap);
 
         let shape = [batch_size, d];
+        let d_up = mid_up.layout.shape()[1];
         Mlp {
             y: env.tensor(Arg::Y, dt, &shape),
             x: env.tensor(Arg::X, dt, &shape),
-            mid,
+            mid_up,
+            mid_down,
 
-            up: env.tensor(Arg::Up, dt, &[d, di]),
+            up: env.tensor(Arg::Up, dt, &[d, d_up]),
             up_bias: if up_bias {
-                Some(env.tensor(Arg::UpBias, dt, &[1, di]))
+                Some(env.tensor(Arg::UpBias, dt, &[1, d_up]))
             } else {
                 None
             },
@@ -103,7 +106,8 @@ impl Mlp {
             act: activation,
             y,
             x,
-            mid,
+            mid_up,
+            mid_down,
             up,
             up_bias,
             down,
@@ -112,7 +116,7 @@ impl Mlp {
         } = self;
 
         let mut x = env.tensor(Arg::X, x, true);
-        let mut mid = env.workspace(&mid);
+        let mut mid = env.workspace(mid_up);
         {
             let up = env.tensor(Arg::Up, up, false);
             if let Some(up_bias) = up_bias {
@@ -130,25 +134,27 @@ impl Mlp {
             activation.launch(env);
         }
 
-        let mut y = env.tensor(Arg::Y, &y, true);
-        {
-            let down = env.tensor(Arg::Down, down, false);
-            if let Some(down_bias) = down_bias {
+        let mid = StorageTensor {
+            tensor: mid_down,
+            ptr: mid.ptr,
+        };
+        let down = env.tensor(Arg::Down, down, false);
+        let mut y = env.tensor(Arg::Y, y, true);
+        if let Some(down_bias) = down_bias {
+            {
+                let x1 = if *residual { &mut x } else { &mut y };
                 {
-                    let x1 = if *residual { &mut x } else { &mut y };
-                    {
-                        let down_bias = env.tensor(Arg::DownBias, down_bias, false);
-                        env.rearrange(x1, &down_bias);
-                    }
-                    env.mat_mul(x1, scale, &mid, &down, scale);
+                    let down_bias = env.tensor(Arg::DownBias, down_bias, false);
+                    env.rearrange(x1, &down_bias);
                 }
-                if *residual {
-                    env.add(&mut y, &x)
-                }
-            } else {
-                let beta = if *residual { 1. } else { 0. };
-                env.mat_mul(&mut y, beta, &mid, &down, scale)
+                env.mat_mul(x1, scale, &mid, &down, scale);
             }
+            if *residual {
+                env.add(&mut y, &x)
+            }
+        } else {
+            let beta = if *residual { 1. } else { 0. };
+            env.mat_mul(&mut y, beta, &mid, &down, scale)
         }
     }
 }
@@ -187,16 +193,16 @@ mod test {
             down_bias: false,
         };
         let xy = ArrayLayout::new_contiguous(&[7, 1024], BigEndian, 2);
-        let up = ArrayLayout::new_contiguous(&[1024, 1536], BigEndian, 2);
+        let up = ArrayLayout::new_contiguous(&[1024, 1536 * 2], BigEndian, 2);
         let down = ArrayLayout::new_contiguous(&[1536, 1024], BigEndian, 2);
 
-        let mut lm = TestLayoutManager::default();
+        let lm = TestLayoutManager::default();
         lm.set(Arg::Y, xy.clone());
         lm.set(Arg::X, xy);
         lm.set(Arg::Up, up);
         lm.set(Arg::Down, down);
 
-        let mlp = meta.build(&mut lm, 7, true);
+        let mlp = meta.build(&lm, 7, true);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(

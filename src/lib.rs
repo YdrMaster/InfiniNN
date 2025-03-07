@@ -43,12 +43,7 @@ impl<B: Backend> Ptr<B> {
 
 impl<B: Backend> Clone for Ptr<B> {
     fn clone(&self) -> Self {
-        match *self {
-            Self::Host(ptr) => Self::Host(ptr),
-            Self::HostMut(ptr) => Self::HostMut(ptr),
-            Self::Mut(ptr) => Self::Mut(ptr),
-            Self::Const(ptr) => Self::Const(ptr),
-        }
+        *self
     }
 }
 impl<B: Backend> Copy for Ptr<B> {}

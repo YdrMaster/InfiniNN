@@ -1,5 +1,5 @@
 use crate::{
-    LayoutManage, MemManage, Tensor,
+    LayoutManage, MemManage, StorageTensor, Tensor,
     ext::{LayoutManageExt, MemManageExt},
     operators::{AttnMask, MatMul, Rearrange, Softmax},
 };
@@ -11,10 +11,12 @@ pub struct Attention {
     v: Tensor,
     o: Tensor,
 
-    alpha: f32,
-    attn_mask: AttnMask,
-    qx: Option<Tensor>,
+    qx: Tensor,
     att: Tensor,
+
+    alpha: f32,
+    rearrange: bool,
+    attn_mask: AttnMask,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -47,31 +49,33 @@ impl Meta {
 
         let qo = [nh, n_seq, dh];
         let kv = [nkvh, n_att, dh];
-        let mut q = env.tensor(Arg::Q, dt, &qo);
+        let q = env.tensor(Arg::Q, dt, &qo);
         let k = env.tensor(Arg::K, dt, &kv).transpose(&[2, 1]);
         let v = env.tensor(Arg::V, dt, &kv);
         let o = env.tensor(Arg::O, dt, &qo);
 
-        let qx = if gh == 1 {
-            None
+        let (qx, rearrange) = if gh == 1 {
+            (q.clone(), false)
         } else if let Some(q_) = q.merge(0, 2) {
-            q = q_.tile(0, &[nkvh, gh * n_seq]);
-            None
+            (q_.tile(0, &[nkvh, gh * n_seq]), false)
         } else {
-            Some(Tensor::new(dt, &[nkvh, gh * n_seq, nh]))
+            (Tensor::new(dt, &[nkvh, gh * n_seq, nh]), true)
         };
 
         let alpha = (dh as f32).sqrt().recip();
-        let att = Tensor::new(dt, &[nkvh, n_seq, n_att]);
+        let att = Tensor::new(dt, &[nkvh, gh * n_seq, n_att]);
         Attention {
             q,
             k,
             v,
             o,
-            alpha,
-            attn_mask,
+
             qx,
             att,
+
+            alpha,
+            rearrange,
+            attn_mask,
         }
     }
 }
@@ -86,38 +90,46 @@ impl Attention {
             v,
             o,
 
-            alpha,
-            attn_mask,
             qx,
             att,
+
+            alpha,
+            rearrange,
+            attn_mask,
         } = self;
 
         let mut att = env.workspace(att);
         let mut ox = {
             let k = env.tensor(Arg::K, k, false);
-            if let Some(qx) = qx {
+            let qx = if *rearrange {
                 let q = env.tensor(Arg::Q, q, false);
                 let mut qx = env.workspace(qx);
                 env.rearrange(&mut qx, &q);
-                env.mat_mul(&mut att, 0.0, &qx, &k, *alpha);
                 qx
             } else {
-                let q = env.tensor(Arg::Q, q, true);
-                env.mat_mul(&mut att, 0.0, &q, &k, *alpha);
-                q
-            }
+                env.tensor(Arg::Q, qx, true)
+            };
+            env.mat_mul(&mut att, 0.0, &qx, &k, *alpha);
+            qx
         };
 
         env.softmax(&mut att, *attn_mask);
 
         {
+            let att = att;
             let v = env.tensor(Arg::V, v, false);
             env.mat_mul(&mut ox, 0., &att, &v, 1.)
         }
 
         let mut o = env.tensor(Arg::O, o, true);
         if o.ptr.address() != ox.ptr.address() {
-            env.rearrange(&mut o, &ox);
+            env.rearrange(
+                &mut o,
+                &StorageTensor {
+                    tensor: q,
+                    ptr: ox.ptr,
+                },
+            );
         }
     }
 }
@@ -148,13 +160,13 @@ mod test {
         let qo = ArrayLayout::new_contiguous(&[8, 7, 64], BigEndian, 2);
         let kv = ArrayLayout::new_contiguous(&[2, 777, 64], BigEndian, 2);
 
-        let mut lm = TestLayoutManager::default();
+        let lm = TestLayoutManager::default();
         lm.set(Arg::Q, qo.clone());
         lm.set(Arg::K, kv.clone());
         lm.set(Arg::V, kv);
         lm.set(Arg::O, qo);
 
-        let att = meta.build(&mut lm, 7, 777);
+        let att = meta.build(&lm, 7, 777);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(
