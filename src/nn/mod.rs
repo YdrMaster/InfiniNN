@@ -6,5 +6,6 @@
 //! 3. 执行环境：包含运行时的动态结构，执行时可从中获得算子列表、队列、各个张量和中间状态的地址等运行时数对象；
 
 pub mod activation;
+pub mod attention;
 pub mod mlp;
 pub mod normalization;

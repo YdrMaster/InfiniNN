@@ -21,11 +21,23 @@ impl Tensor {
         }
     }
 
-    pub fn broadcast(&self, axis: usize, times: usize) -> Self {
-        Self {
-            dt: self.dt,
-            layout: self.layout.broadcast(axis, times),
-        }
+    pub fn merge(&self, start: usize, len: usize) -> Option<Self> {
+        let &Self { dt, ref layout } = self;
+        layout
+            .merge_be(start, len)
+            .map(|layout| Self { dt, layout })
+    }
+
+    pub fn tile(&self, axis: usize, tiles: &[usize]) -> Self {
+        let &Self { dt, ref layout } = self;
+        let layout = layout.tile_be(axis, tiles);
+        Self { dt, layout }
+    }
+
+    pub fn transpose(&self, perm: &[usize]) -> Self {
+        let &Self { dt, ref layout } = self;
+        let layout = layout.transpose(perm);
+        Self { dt, layout }
     }
 
     pub fn split<'a>(&'a self, axis: usize, parts: &'a [usize]) -> impl Iterator<Item = Self> + 'a {

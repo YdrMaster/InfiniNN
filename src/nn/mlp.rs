@@ -2,6 +2,7 @@ use super::activation::{self, Activation, Type};
 use crate::{
     LayoutManage, MemManage, StorageTensor, Tensor,
     ext::{LayoutManageExt, MemManageExt, TrapTraceExt},
+    operators::{MatMul, Rearrange},
     split,
 };
 
@@ -92,24 +93,12 @@ impl Meta {
     }
 }
 
-pub trait Env: MemManage {
-    fn rearrange(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>);
-    fn mat_mul(
-        &self,
-        c: &mut StorageTensor<Self::B>,
-        beta: f32,
-        a: &StorageTensor<Self::B>,
-        b: &StorageTensor<Self::B>,
-        alpha: f32,
-    );
+pub trait Env: MemManage + activation::Env + Rearrange + MatMul {
     fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>);
 }
 
 impl Mlp {
-    pub fn launch<Env_>(&self, env: &Env_, scale: f32)
-    where
-        Env_: Env + activation::Env,
-    {
+    pub fn launch(&self, env: &impl Env, scale: f32) {
         let Self {
             act: activation,
             y,
@@ -176,30 +165,6 @@ mod test {
     use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 
     impl Env for TestMemManager {
-        fn rearrange(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>) {
-            self.launch(format!(
-                "rearrange(mut %{}, %{})",
-                y.ptr.address(),
-                x.ptr.address(),
-            ))
-        }
-
-        fn mat_mul(
-            &self,
-            c: &mut StorageTensor<Self::B>,
-            beta: f32,
-            a: &StorageTensor<Self::B>,
-            b: &StorageTensor<Self::B>,
-            alpha: f32,
-        ) {
-            self.launch(format!(
-                "mat-mul(mut %{}, {beta:.2e}, %{}, %{}, {alpha:.2e})",
-                c.ptr.address(),
-                a.ptr.address(),
-                b.ptr.address(),
-            ))
-        }
-
         fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>) {
             self.launch(format!(
                 "add(mut %{}, %{})",
@@ -231,7 +196,7 @@ mod test {
         lm.set(Arg::Up, up);
         lm.set(Arg::Down, down);
 
-        let act = meta.build(&mut lm, 7, true);
+        let mlp = meta.build(&mut lm, 7, true);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(
@@ -243,7 +208,7 @@ mod test {
                 (Arg::Down, Ptr::Const(3 as _)),
             ],
         );
-        act.launch(&mm, 1.);
+        mlp.launch(&mm, 1.);
 
         println!("{mm}")
     }
