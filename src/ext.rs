@@ -20,6 +20,10 @@ impl<T: TrapTrace + ?Sized> Drop for TrapGuard<'_, T> {
 }
 
 pub(crate) trait LayoutManageExt: LayoutManage {
+    fn get_dim(&self, which: impl Copy, i: usize) -> usize {
+        self.get(which).shape()[i]
+    }
+
     fn tensor(&self, which: impl Copy, dt: DigitLayout, shape: &[usize]) -> Tensor {
         let layout = self.get(which);
         assert_eq!(shape, layout.shape());

@@ -36,3 +36,25 @@ impl LayoutManage for TestLayoutManager {
         map.insert(key, layout);
     }
 }
+
+impl<T, U> From<T> for TestLayoutManager
+where
+    U: Copy,
+    T: IntoIterator<Item = (U, ArrayLayout<4>)>,
+{
+    fn from(value: T) -> Self {
+        let ans = Self::default();
+        for (which, layout) in value {
+            ans.set(which, layout)
+        }
+        ans
+    }
+}
+
+impl<U: Copy> Extend<(U, ArrayLayout<4>)> for TestLayoutManager {
+    fn extend<T: IntoIterator<Item = (U, ArrayLayout<4>)>>(&mut self, iter: T) {
+        for (which, layout) in iter {
+            self.set(which, layout)
+        }
+    }
+}

@@ -41,34 +41,34 @@ pub enum Arg {
 }
 
 impl Meta {
-    pub fn build(&self, env: &impl LayoutManage, batch_size: usize, residual: bool) -> Mlp {
+    pub fn build(&self, env: &impl LayoutManage, residual: bool) -> Mlp {
         let &Self {
             act,
             d,
             up_bias,
             down_bias,
         } = self;
-
         let activation::Meta { ty, dt, di } = act;
+        let n = env.get_dim(Arg::Y, 0);
 
         let trap = env.trap(Sub {});
         let (mid_up, mid_down, act) = match ty {
             Type::SwiGLU => {
-                let mid = Tensor::new(dt, &[batch_size, di * 2]);
+                let mid = Tensor::new(dt, &[n, di * 2]);
                 split!(mid => gate, up; [di, di] @ 1);
                 env.set_tensor(activation::Arg::Gate, &gate);
                 env.set_tensor(activation::Arg::Up, &up);
-                (mid, gate, act.build(env, batch_size))
+                (mid, gate, act.build(env))
             }
             Type::GeLU => {
-                let mid = Tensor::new(dt, &[batch_size, di]);
+                let mid = Tensor::new(dt, &[n, di]);
                 env.set_tensor(activation::Arg::Up, &mid);
-                (mid.clone(), mid, act.build(env, batch_size))
+                (mid.clone(), mid, act.build(env))
             }
         };
         drop(trap);
 
-        let shape = [batch_size, d];
+        let shape = [n, d];
         let d_up = mid_up.layout.shape()[1];
         Mlp {
             y: env.tensor(Arg::Y, dt, &shape),
@@ -163,12 +163,11 @@ impl Mlp {
 mod test {
     use super::{Arg, Env, Meta, Type, activation};
     use crate::{
-        LayoutManage, Ptr, StorageTensor,
+        Ptr, StorageTensor, Tensor,
         ext::MemManageExt,
         test_recorder::{TestLayoutManager, TestMemManager},
     };
     use digit_layout::types as ty;
-    use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 
     impl Env for TestMemManager {
         fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>) {
@@ -182,27 +181,32 @@ mod test {
 
     #[test]
     fn test() {
+        let dt = ty::F16;
+        let d = 1024;
+        let di = 1536;
+        let batch_size = 7;
+
         let meta = Meta {
             act: activation::Meta {
                 ty: Type::SwiGLU,
-                dt: ty::F16,
-                di: 1536,
+                dt,
+                di,
             },
-            d: 1024,
+            d,
             up_bias: false,
             down_bias: false,
         };
-        let xy = ArrayLayout::new_contiguous(&[7, 1024], BigEndian, 2);
-        let up = ArrayLayout::new_contiguous(&[1024, 1536 * 2], BigEndian, 2);
-        let down = ArrayLayout::new_contiguous(&[1536, 1024], BigEndian, 2);
+        let xy = Tensor::new(dt, &[batch_size, d]).layout;
+        let up = Tensor::new(dt, &[d, di * 2]).layout;
+        let down = Tensor::new(dt, &[di, d]).layout;
 
-        let lm = TestLayoutManager::default();
-        lm.set(Arg::Y, xy.clone());
-        lm.set(Arg::X, xy);
-        lm.set(Arg::Up, up);
-        lm.set(Arg::Down, down);
-
-        let mlp = meta.build(&lm, 7, true);
+        let lm = TestLayoutManager::from([
+            (Arg::Y, xy.clone()),
+            (Arg::X, xy),
+            (Arg::Up, up),
+            (Arg::Down, down),
+        ]);
+        let mlp = meta.build(&lm, true);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(

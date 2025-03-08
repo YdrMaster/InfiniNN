@@ -37,7 +37,7 @@ pub enum Arg {
 }
 
 impl Meta {
-    pub fn build(&self, env: &impl LayoutManage, n_seq: usize, n_att: usize) -> Attention {
+    pub fn build(&self, env: &impl LayoutManage) -> Attention {
         let &Self {
             dt,
             nh,
@@ -46,6 +46,8 @@ impl Meta {
             attn_mask,
         } = self;
         let gh = nh / nkvh;
+        let n_seq = env.get_dim(Arg::Q, 1);
+        let n_att = env.get_dim(Arg::K, 1);
 
         let qo = [nh, n_seq, dh];
         let kv = [nkvh, n_att, dh];
@@ -129,7 +131,7 @@ impl Attention {
                     tensor: q,
                     ptr: ox.ptr,
                 },
-            );
+            )
         }
     }
 }
@@ -138,35 +140,41 @@ impl Attention {
 mod test {
     use super::{Arg, Env, Meta};
     use crate::{
-        LayoutManage, Ptr,
+        Ptr, Tensor,
         ext::MemManageExt,
         operators::AttnMask,
         test_recorder::{TestLayoutManager, TestMemManager},
     };
     use digit_layout::types as ty;
-    use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 
     impl Env for TestMemManager {}
 
     #[test]
     fn test() {
+        let dt = ty::F16;
+        let nh = 8;
+        let nkvh = 2;
+        let dh = 64;
+        let n_seq = 7;
+        let n_att = 777;
+
         let meta = Meta {
-            dt: ty::F16,
-            nh: 8,
-            nkvh: 2,
-            dh: 64,
+            dt,
+            nh,
+            nkvh,
+            dh,
             attn_mask: AttnMask::Causal,
         };
-        let qo = ArrayLayout::new_contiguous(&[8, 7, 64], BigEndian, 2);
-        let kv = ArrayLayout::new_contiguous(&[2, 777, 64], BigEndian, 2);
+        let qo = Tensor::new(dt, &[nh, n_seq, dh]).layout;
+        let kv = Tensor::new(dt, &[nkvh, n_att, dh]).layout;
 
-        let lm = TestLayoutManager::default();
-        lm.set(Arg::Q, qo.clone());
-        lm.set(Arg::K, kv.clone());
-        lm.set(Arg::V, kv);
-        lm.set(Arg::O, qo);
-
-        let att = meta.build(&lm, 7, 777);
+        let lm = TestLayoutManager::from([
+            (Arg::Q, qo.clone()),
+            (Arg::K, kv.clone()),
+            (Arg::V, kv),
+            (Arg::O, qo),
+        ]);
+        let att = meta.build(&lm);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(

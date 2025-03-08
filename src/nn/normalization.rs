@@ -42,20 +42,21 @@ pub enum Arg {
 }
 
 impl Meta {
-    pub fn build(&self, env: &impl LayoutManage, batch_size: usize) -> Normalization {
-        let shape_a = [batch_size, self.d];
-        let shape_wb = [self.d];
-        match self.ty {
+    pub fn build(&self, env: &impl LayoutManage) -> Normalization {
+        let &Self { ty, dt_a, dt_w, d } = self;
+        let n = env.get_dim(Arg::Y, 0);
+
+        match ty {
             Type::LayerNorm => Normalization::LayerNorm {
-                y: env.tensor(Arg::Y, self.dt_a, &shape_a),
-                x: env.tensor(Arg::X, self.dt_a, &shape_a),
-                w: env.tensor(Arg::W, self.dt_w, &shape_wb),
-                b: env.tensor(Arg::B, self.dt_w, &shape_wb),
+                y: env.tensor(Arg::Y, dt_a, &[n, d]),
+                x: env.tensor(Arg::X, dt_a, &[n, d]),
+                w: env.tensor(Arg::W, dt_w, &[d]),
+                b: env.tensor(Arg::B, dt_w, &[d]),
             },
             Type::RmsNorm { epsilon } => Normalization::RmsNorm {
-                y: env.tensor(Arg::Y, self.dt_a, &shape_a),
-                x: env.tensor(Arg::X, self.dt_a, &shape_a),
-                w: env.tensor(Arg::W, self.dt_w, &shape_wb),
+                y: env.tensor(Arg::Y, dt_a, &[n, d]),
+                x: env.tensor(Arg::X, dt_a, &[n, d]),
+                w: env.tensor(Arg::W, dt_w, &[d]),
                 epsilon,
             },
         }
@@ -103,12 +104,11 @@ impl Normalization {
 mod test {
     use super::{Arg, Env, Meta, Type};
     use crate::{
-        LayoutManage, Ptr, StorageTensor,
+        Ptr, StorageTensor, Tensor,
         ext::MemManageExt,
         test_recorder::{TestLayoutManager, TestMemManager},
     };
     use digit_layout::types as ty;
-    use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 
     impl Env for TestMemManager {
         fn layer_norm(
@@ -145,20 +145,22 @@ mod test {
 
     #[test]
     fn test() {
+        let dt_a = ty::F16;
+        let dt_w = ty::F32;
+        let d = 2048;
+        let batch_size = 7;
+
         let meta = Meta {
             ty: Type::RmsNorm { epsilon: 1e-5 },
-            dt_a: ty::I16,
-            dt_w: ty::F32,
-            d: 2048,
+            dt_a,
+            dt_w,
+            d,
         };
-        let a = ArrayLayout::new_contiguous(&[7, 2048], BigEndian, 2);
-        let w = ArrayLayout::new_contiguous(&[2048], BigEndian, 2);
+        let a = Tensor::new(dt_a, &[batch_size, d]).layout;
+        let w = Tensor::new(dt_w, &[d]).layout;
 
-        let lm = TestLayoutManager::default();
-        lm.set(Arg::Y, a.clone());
-        lm.set(Arg::X, a);
-        lm.set(Arg::W, w);
-        let act = meta.build(&lm, 7);
+        let lm = TestLayoutManager::from([(Arg::Y, a.clone()), (Arg::X, a), (Arg::W, w)]);
+        let act = meta.build(&lm);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(

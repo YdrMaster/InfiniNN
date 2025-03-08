@@ -29,16 +29,17 @@ pub enum Arg {
 }
 
 impl Meta {
-    pub fn build(&self, env: &impl LayoutManage, batch_size: usize) -> Activation {
+    pub fn build(&self, env: &impl LayoutManage) -> Activation {
         let &Self { ty, dt, di } = self;
-        let shape = [batch_size, di];
+        let n = env.get_dim(Arg::Up, 0);
+
         match ty {
             Type::SwiGLU => Activation::SwiGLU {
-                gate: env.tensor(Arg::Gate, dt, &shape),
-                up: env.tensor(Arg::Up, dt, &shape),
+                gate: env.tensor(Arg::Gate, dt, &[n, di]),
+                up: env.tensor(Arg::Up, dt, &[n, di]),
             },
             Type::GeLU => Activation::GeLU {
-                up: env.tensor(Arg::Up, dt, &shape),
+                up: env.tensor(Arg::Up, dt, &[n, di]),
             },
         }
     }
@@ -69,12 +70,11 @@ impl Activation {
 mod test {
     use super::{Arg, Env, Meta, Type};
     use crate::{
-        LayoutManage, Ptr, StorageTensor,
+        Ptr, StorageTensor, Tensor,
         ext::MemManageExt,
         test_recorder::{TestLayoutManager, TestMemManager},
     };
     use digit_layout::types as ty;
-    use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 
     impl Env for TestMemManager {
         fn swiglu(&self, gate: &mut StorageTensor<Self::B>, up: &StorageTensor<Self::B>) {
@@ -92,17 +92,19 @@ mod test {
 
     #[test]
     fn test() {
+        let dt = ty::F16;
+        let di = 2048;
+        let batch_size = 7;
+
         let meta = Meta {
             ty: Type::SwiGLU,
-            dt: ty::F16,
-            di: 2048,
+            dt,
+            di,
         };
-        let layout = ArrayLayout::new_contiguous(&[7, 2048], BigEndian, 2);
+        let layout = Tensor::new(dt, &[batch_size, di]).layout;
 
-        let lm = TestLayoutManager::default();
-        lm.set(Arg::Gate, layout.clone());
-        lm.set(Arg::Up, layout);
-        let act = meta.build(&lm, 7);
+        let lm = TestLayoutManager::from([(Arg::Gate, layout.clone()), (Arg::Up, layout)]);
+        let act = meta.build(&lm);
 
         let mm = TestMemManager::default();
         let _trap = mm.trap_with(
