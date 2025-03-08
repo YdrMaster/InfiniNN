@@ -1,5 +1,5 @@
 use crate::{
-    LayoutManage, MemManage, StorageTensor, Tensor,
+    LayerNorm, LayoutManage, RmsNorm, Tensor,
     ext::{LayoutManageExt, MemManageExt},
 };
 use digit_layout::DigitLayout;
@@ -63,22 +63,7 @@ impl Meta {
     }
 }
 
-pub trait Env: MemManage {
-    fn layer_norm(
-        &self,
-        y: &mut StorageTensor<Self::B>,
-        x: &StorageTensor<Self::B>,
-        w: &StorageTensor<Self::B>,
-        b: &StorageTensor<Self::B>,
-    );
-    fn rms_norm(
-        &self,
-        y: &mut StorageTensor<Self::B>,
-        x: &StorageTensor<Self::B>,
-        w: &StorageTensor<Self::B>,
-        theta: f32,
-    );
-}
+pub trait Env: LayerNorm + RmsNorm {}
 
 impl Normalization {
     pub fn launch(&self, env: &impl Env) {
@@ -104,43 +89,12 @@ impl Normalization {
 mod test {
     use super::{Arg, Env, Meta, Type};
     use crate::{
-        StorageTensor, Tensor,
+        Tensor,
         test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
     };
     use digit_layout::types as ty;
 
-    impl Env for TestMemManager {
-        fn layer_norm(
-            &self,
-            y: &mut StorageTensor<Self::B>,
-            x: &StorageTensor<Self::B>,
-            w: &StorageTensor<Self::B>,
-            b: &StorageTensor<Self::B>,
-        ) {
-            self.launch(format!(
-                "layer_norm(mut %{}, %{}, %{}, %{})",
-                y.ptr.address(),
-                x.ptr.address(),
-                w.ptr.address(),
-                b.ptr.address(),
-            ));
-        }
-
-        fn rms_norm(
-            &self,
-            y: &mut StorageTensor<Self::B>,
-            x: &StorageTensor<Self::B>,
-            w: &StorageTensor<Self::B>,
-            epsilon: f32,
-        ) {
-            self.launch(format!(
-                "rms_norm(mut %{}, %{}, %{}, {epsilon:.2e})",
-                y.ptr.address(),
-                x.ptr.address(),
-                w.ptr.address(),
-            ));
-        }
-    }
+    impl Env for TestMemManager {}
 
     #[test]
     fn test() {

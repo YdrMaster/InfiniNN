@@ -1,6 +1,6 @@
 use super::activation::{self, Activation, Type};
 use crate::{
-    LayoutManage, MemManage, StorageTensor, Tensor,
+    Add, LayoutManage, StorageTensor, Tensor,
     ext::{LayoutManageExt, MemManageExt, TrapTraceExt},
     operators::{MatMul, Rearrange},
     split,
@@ -96,9 +96,7 @@ impl Meta {
     }
 }
 
-pub trait Env: MemManage + activation::Env + Rearrange + MatMul {
-    fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>);
-}
+pub trait Env: activation::Env + Rearrange + MatMul + Add {}
 
 impl Mlp {
     pub fn launch(&self, env: &impl Env, scale: f32) {
@@ -163,20 +161,12 @@ impl Mlp {
 mod test {
     use super::{Arg, Env, Meta, Type, activation};
     use crate::{
-        StorageTensor, Tensor,
+        Tensor,
         test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
     };
     use digit_layout::types as ty;
 
-    impl Env for TestMemManager {
-        fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>) {
-            self.launch(format!(
-                "add(mut %{}, %{})",
-                y.ptr.address(),
-                x.ptr.address(),
-            ))
-        }
-    }
+    impl Env for TestMemManager {}
 
     #[test]
     fn test() {

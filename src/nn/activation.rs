@@ -1,5 +1,5 @@
 use crate::{
-    LayoutManage, MemManage, StorageTensor, Tensor,
+    GeLU, LayoutManage, SwiGLU, Tensor,
     ext::{LayoutManageExt, MemManageExt},
 };
 use digit_layout::DigitLayout;
@@ -45,10 +45,7 @@ impl Meta {
     }
 }
 
-pub trait Env: MemManage {
-    fn swiglu(&self, gate: &mut StorageTensor<Self::B>, up: &StorageTensor<Self::B>);
-    fn gelu(&self, up: &mut StorageTensor<Self::B>);
-}
+pub trait Env: SwiGLU + GeLU {}
 
 impl Activation {
     pub fn launch(&self, env: &impl Env) {
@@ -70,24 +67,12 @@ impl Activation {
 mod test {
     use super::{Arg, Env, Meta, Type};
     use crate::{
-        StorageTensor, Tensor,
+        Tensor,
         test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
     };
     use digit_layout::types as ty;
 
-    impl Env for TestMemManager {
-        fn swiglu(&self, gate: &mut StorageTensor<Self::B>, up: &StorageTensor<Self::B>) {
-            self.launch(format!(
-                "swiglu(mut %{}, %{})",
-                gate.ptr.address(),
-                up.ptr.address()
-            ))
-        }
-
-        fn gelu(&self, up: &mut StorageTensor<Self::B>) {
-            self.launch(format!("gelu(mut %{})", up.ptr.address()))
-        }
-    }
+    impl Env for TestMemManager {}
 
     #[test]
     fn test() {

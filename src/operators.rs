@@ -26,6 +26,38 @@ pub trait Softmax: MemManage {
     fn softmax(&self, att: &mut StorageTensor<Self::B>, mask: AttnMask);
 }
 
+pub trait SwiGLU: MemManage {
+    fn swiglu(&self, gate: &mut StorageTensor<Self::B>, up: &StorageTensor<Self::B>);
+}
+
+pub trait GeLU: MemManage {
+    fn gelu(&self, up: &mut StorageTensor<Self::B>);
+}
+
+pub trait RmsNorm: MemManage {
+    fn rms_norm(
+        &self,
+        y: &mut StorageTensor<Self::B>,
+        x: &StorageTensor<Self::B>,
+        w: &StorageTensor<Self::B>,
+        theta: f32,
+    );
+}
+
+pub trait LayerNorm: MemManage {
+    fn layer_norm(
+        &self,
+        y: &mut StorageTensor<Self::B>,
+        x: &StorageTensor<Self::B>,
+        w: &StorageTensor<Self::B>,
+        b: &StorageTensor<Self::B>,
+    );
+}
+
+pub trait Add: MemManage {
+    fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -35,6 +67,7 @@ mod test {
         fn rearrange(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>) {
             assert_eq!(y.tensor.dt, x.tensor.dt);
             assert_eq!(y.tensor.layout.shape(), x.tensor.layout.shape());
+
             self.launch(format!(
                 "rearrange(mut %{}, %{})",
                 y.ptr.address(),
@@ -93,11 +126,89 @@ mod test {
     impl Softmax for TestMemManager {
         fn softmax(&self, att: &mut StorageTensor<Self::B>, mask: AttnMask) {
             assert_eq!(att.tensor.layout.ndim(), 3);
+
             let mask = match mask {
                 AttnMask::None => "",
                 AttnMask::Causal => ", causal",
             };
             self.launch(format!("softmax(mut %{}{mask})", att.ptr.address()))
+        }
+    }
+
+    impl SwiGLU for TestMemManager {
+        fn swiglu(&self, gate: &mut StorageTensor<Self::B>, up: &StorageTensor<Self::B>) {
+            assert_eq!(gate.tensor.dt, up.tensor.dt);
+            assert_eq!(gate.tensor.layout.shape(), up.tensor.layout.shape());
+            assert_eq!(gate.tensor.layout.ndim(), 2);
+
+            self.launch(format!(
+                "swiglu(mut %{}, %{})",
+                gate.ptr.address(),
+                up.ptr.address()
+            ))
+        }
+    }
+
+    impl GeLU for TestMemManager {
+        fn gelu(&self, up: &mut StorageTensor<Self::B>) {
+            assert_eq!(up.tensor.layout.ndim(), 2);
+
+            self.launch(format!("gelu(mut %{})", up.ptr.address()))
+        }
+    }
+
+    impl RmsNorm for TestMemManager {
+        fn rms_norm(
+            &self,
+            y: &mut StorageTensor<Self::B>,
+            x: &StorageTensor<Self::B>,
+            w: &StorageTensor<Self::B>,
+            epsilon: f32,
+        ) {
+            assert_eq!(y.tensor.dt, x.tensor.dt);
+            assert_eq!(y.tensor.layout.shape(), x.tensor.layout.shape());
+
+            self.launch(format!(
+                "rms_norm(mut %{}, %{}, %{}, {epsilon:.2e})",
+                y.ptr.address(),
+                x.ptr.address(),
+                w.ptr.address(),
+            ))
+        }
+    }
+
+    impl LayerNorm for TestMemManager {
+        fn layer_norm(
+            &self,
+            y: &mut StorageTensor<Self::B>,
+            x: &StorageTensor<Self::B>,
+            w: &StorageTensor<Self::B>,
+            b: &StorageTensor<Self::B>,
+        ) {
+            assert_eq!(y.tensor.dt, x.tensor.dt);
+            assert_eq!(y.tensor.layout.shape(), x.tensor.layout.shape());
+            assert_eq!(w.tensor.dt, b.tensor.dt);
+
+            self.launch(format!(
+                "layer_norm(mut %{}, %{}, %{}, %{})",
+                y.ptr.address(),
+                x.ptr.address(),
+                w.ptr.address(),
+                b.ptr.address(),
+            ))
+        }
+    }
+
+    impl Add for TestMemManager {
+        fn add(&self, y: &mut StorageTensor<Self::B>, x: &StorageTensor<Self::B>) {
+            assert_eq!(y.tensor.dt, x.tensor.dt);
+            assert_eq!(y.tensor.layout.shape(), x.tensor.layout.shape());
+
+            self.launch(format!(
+                "add(mut %{}, %{})",
+                y.ptr.address(),
+                x.ptr.address(),
+            ))
         }
     }
 }

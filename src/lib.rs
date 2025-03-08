@@ -6,6 +6,7 @@ mod test_recorder;
 pub mod nn;
 
 use ndarray_layout::ArrayLayout;
+pub use operators::*;
 pub use tensor::{StorageTensor, Tensor};
 
 pub trait Backend {

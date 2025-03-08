@@ -1,5 +1,5 @@
 use crate::{
-    LayoutManage, MemManage, StorageTensor, Tensor,
+    LayoutManage, StorageTensor, Tensor,
     ext::{LayoutManageExt, MemManageExt},
     operators::{AttnMask, MatMul, Rearrange, Softmax},
 };
@@ -82,7 +82,7 @@ impl Meta {
     }
 }
 
-pub trait Env: MemManage + Rearrange + MatMul + Softmax {}
+pub trait Env: Rearrange + MatMul + Softmax {}
 
 impl Attention {
     pub fn launch(&self, env: &impl Env) {
