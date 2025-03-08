@@ -4,7 +4,7 @@ mod layout;
 mod memory;
 
 pub(crate) use layout::TestLayoutManager;
-pub(crate) use memory::TestMemManager;
+pub(crate) use memory::{TestMemManager, TestMemManagerLoader};
 
 use crate::TrapTrace;
 use std::cell::RefCell;
@@ -14,8 +14,14 @@ use std::cell::RefCell;
 struct TestTrapTracer(RefCell<Vec<u8>>);
 
 impl TestTrapTracer {
-    pub fn current(&self) -> Vec<u8> {
-        self.0.borrow().clone()
+    pub fn leaf(&self, key: impl Copy) -> Vec<u8> {
+        let slice = slice_of(&key);
+        assert!(slice.len() < 256);
+
+        let mut ans = self.0.borrow().clone();
+        ans.push(slice.len() as _);
+        ans.extend_from_slice(slice);
+        ans
     }
 }
 

@@ -163,9 +163,8 @@ impl Mlp {
 mod test {
     use super::{Arg, Env, Meta, Type, activation};
     use crate::{
-        Ptr, StorageTensor, Tensor,
-        ext::MemManageExt,
-        test_recorder::{TestLayoutManager, TestMemManager},
+        StorageTensor, Tensor,
+        test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
     };
     use digit_layout::types as ty;
 
@@ -208,16 +207,7 @@ mod test {
         ]);
         let mlp = meta.build(&lm, true);
 
-        let mm = TestMemManager::default();
-        let _trap = mm.trap_with(
-            (),
-            &[
-                (Arg::Y, Ptr::Mut(0 as _)),
-                (Arg::X, Ptr::Mut(1 as _)),
-                (Arg::Up, Ptr::Const(2 as _)),
-                (Arg::Down, Ptr::Const(3 as _)),
-            ],
-        );
+        let mm = TestMemManagerLoader::new([Arg::Y, Arg::X], [Arg::Up, Arg::Down]).build();
         mlp.launch(&mm, 1.);
 
         println!("{mm}")

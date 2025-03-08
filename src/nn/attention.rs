@@ -140,10 +140,9 @@ impl Attention {
 mod test {
     use super::{Arg, Env, Meta};
     use crate::{
-        Ptr, Tensor,
-        ext::MemManageExt,
+        Tensor,
         operators::AttnMask,
-        test_recorder::{TestLayoutManager, TestMemManager},
+        test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
     };
     use digit_layout::types as ty;
 
@@ -176,16 +175,7 @@ mod test {
         ]);
         let att = meta.build(&lm);
 
-        let mm = TestMemManager::default();
-        let _trap = mm.trap_with(
-            (),
-            &[
-                (Arg::Q, Ptr::Mut(0 as _)),
-                (Arg::K, Ptr::Const(1 as _)),
-                (Arg::V, Ptr::Const(2 as _)),
-                (Arg::O, Ptr::Mut(3 as _)),
-            ],
-        );
+        let mm = TestMemManagerLoader::new([Arg::Q, Arg::O], [Arg::K, Arg::V]).build();
         att.launch(&mm);
 
         println!("{mm}")

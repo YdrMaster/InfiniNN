@@ -104,9 +104,8 @@ impl Normalization {
 mod test {
     use super::{Arg, Env, Meta, Type};
     use crate::{
-        Ptr, StorageTensor, Tensor,
-        ext::MemManageExt,
-        test_recorder::{TestLayoutManager, TestMemManager},
+        StorageTensor, Tensor,
+        test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
     };
     use digit_layout::types as ty;
 
@@ -162,15 +161,7 @@ mod test {
         let lm = TestLayoutManager::from([(Arg::Y, a.clone()), (Arg::X, a), (Arg::W, w)]);
         let act = meta.build(&lm);
 
-        let mm = TestMemManager::default();
-        let _trap = mm.trap_with(
-            (),
-            &[
-                (Arg::Y, Ptr::Mut(0 as _)),
-                (Arg::X, Ptr::Const(1 as _)),
-                (Arg::W, Ptr::Const(2 as _)),
-            ],
-        );
+        let mm = TestMemManagerLoader::new([Arg::Y], [Arg::X, Arg::W]).build();
         act.launch(&mm);
 
         println!("{mm}")

@@ -1,4 +1,4 @@
-use super::{TestTrapTracer, slice_of};
+use super::TestTrapTracer;
 use crate::{LayoutManage, TrapTrace};
 use ndarray_layout::ArrayLayout;
 use patricia_tree::PatriciaMap;
@@ -22,16 +22,12 @@ impl TrapTrace for TestLayoutManager {
 
 impl LayoutManage for TestLayoutManager {
     fn get<T: Copy>(&self, which: T) -> ArrayLayout<4> {
-        let mut key = self.tracer.current();
-        key.extend_from_slice(slice_of(&which));
-
+        let key = self.tracer.leaf(which);
         self.layouts.borrow().get(&key).unwrap().clone()
     }
 
     fn set<T: Copy>(&self, which: T, layout: ArrayLayout<4>) {
-        let mut key = self.tracer.current();
-        key.extend_from_slice(slice_of(&which));
-
+        let key = self.tracer.leaf(which);
         let mut map = self.layouts.borrow_mut();
         map.insert(key, layout);
     }
