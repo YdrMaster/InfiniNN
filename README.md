@@ -9,6 +9,9 @@
 ![GitHub contributors](https://img.shields.io/github/contributors/YdrMaster/InfiniNN)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/YdrMaster/InfiniNN)
 
+> - ⚠️ 本项目还处在🚧早期探索和💡设计阶段，API 可能激烈变动。
+> - 💬 关于本项目的🧠思路、📃方案以及其他渠道收集的❓意见将发布在[🗪讨论区](https://github.com/YdrMaster/InfiniNN/discussions)，也欢迎直接[发帖](https://github.com/YdrMaster/InfiniNN/discussions/new/choose)讨论！
+
 神经网络结构是**人工智能知识**到**人工智能系统**的映射，旨在向上隔离系统复杂性，支持 AI 模型开发者用相对简单的 API 描述神经网络。一个完整的结构定义由下列部分组成：
 
 1. 超参数/元信息：神经网络先验知识，隐含着有关网络的功能和特性的知识。元信息一定是在模型训练时确定的；
