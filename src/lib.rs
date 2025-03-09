@@ -1,61 +1,75 @@
-mod ext;
-mod operators;
+mod context;
 mod tensor;
-mod test_recorder;
+mod test;
+
+use std::ops::Deref;
 
 pub mod nn;
+pub mod op;
 
-use ndarray_layout::ArrayLayout;
-pub use operators::*;
-pub use tensor::{StorageTensor, Tensor};
+pub use context::{Context, Exec, Map, Mapping, ObjId};
+pub use tensor::Tensor;
 
-pub trait Backend {
-    type Byte;
+#[allow(non_camel_case_types)]
+pub type pid = u64;
+
+/// 人工智能虚拟系统。
+pub trait VirtualMachine {
+    /// 存储标识符。
+    type Blob: Blob;
+
+    /// 通信组标识符。
+    type CommGroup: CommGroup;
+
+    /// 获取虚拟机管理的设备数量。
+    fn num_devices(&self) -> usize;
+
+    /// 注册 `arch` 架构的模型，创建一个进程，返回一个 `pid` 标识符。
+    fn register(&self, arch: &str) -> pid;
+
+    /// 注销 `pid` 标识符对应的进程。
+    fn unregister(&self, pid: pid);
+
+    /// 映射主机存储空间 `mem` 到系统中。
+    fn map_host(&self, obj: ObjId, mem: Box<dyn Deref<Target = [u8]>>) -> Self::Blob;
+
+    /// 获取映射得到的参数。
+    fn get_mapped(&self, obj: ObjId) -> Self::Blob;
+
+    /// 为 `obj` 对应的对象分配容量为 `size` 字节的主机存储空间，返回对象标识符。
+    fn alloc_host(&self, obj: ObjId, size: usize) -> Self::Blob;
+
+    /// 为 `obj` 对应的对象分配容量为 `size` 字节的设备存储空间，返回对象标识符。
+    fn alloc(&self, obj: ObjId, size: usize) -> Self::Blob;
+
+    /// 重新借用 blob 的一个副本，即引用计数 +1。
+    fn retain(&self, obj: &Self::Blob) -> Self::Blob;
+
+    /// 释放 `blob` 的一个副本，即引用计数 -1。
+    fn release(&self, blob: Self::Blob);
+
+    /// 创建一个通信组，包含 `devices` 列表中的设备。
+    fn comm(&self, devices: &[usize]) -> Self::CommGroup;
 }
 
-pub trait TrapTrace {
-    fn step_in<T: Copy>(&self, ctx: T);
-    fn step_out(&self);
-}
+pub trait Id: Copy + Eq + Send + Sync + 'static {
+    fn from_slice(slice: &[u8]) -> Self {
+        assert_eq!(size_of::<Self>(), slice.len());
+        unsafe { slice.as_ptr().cast::<Self>().read_unaligned() }
+    }
 
-pub trait LayoutManage: TrapTrace {
-    fn get<T: Copy>(&self, which: T) -> ArrayLayout<4>;
-    fn set<T: Copy>(&self, which: T, layout: ArrayLayout<4>);
-}
-
-#[derive(PartialEq, Eq, Hash)]
-pub enum Ptr<B: Backend> {
-    Host(*const u8),
-    HostMut(*mut u8),
-    Mut(*mut B::Byte),
-    Const(*const B::Byte),
-}
-
-impl<B: Backend> Ptr<B> {
-    pub fn address(&self) -> usize {
-        match *self {
-            Self::Host(ptr) => ptr as _,
-            Self::HostMut(ptr) => ptr as _,
-            Self::Mut(ptr) => ptr as _,
-            Self::Const(ptr) => ptr as _,
-        }
+    fn as_slice(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts((&raw const *self).cast(), size_of_val(self)) }
     }
 }
 
-impl<B: Backend> Clone for Ptr<B> {
-    fn clone(&self) -> Self {
-        *self
-    }
+impl<T: Copy + Eq + Send + Sync + 'static> Id for T {}
+
+pub trait Blob {
+    fn eq(l: &Self, r: &Self) -> bool;
+    fn n_bytes(&self) -> usize;
 }
-impl<B: Backend> Copy for Ptr<B> {}
 
-pub trait MemManage: TrapTrace {
-    type B: Backend;
-
-    fn push_arg<T: Copy>(&self, which: T, ptr: Ptr<Self::B>);
-    fn pop_arg<T: Copy>(&self, which: T);
-
-    fn malloc(&self, size: usize) -> Ptr<Self::B>;
-    fn load<T: Copy>(&self, which: T, mutable: bool) -> Ptr<Self::B>;
-    fn drop(&self, ptr: Ptr<Self::B>);
+pub trait CommGroup: Id {
+    fn n_members(&self) -> usize;
 }

@@ -1,85 +1,60 @@
+use super::{NuralNetwork, def};
 use crate::{
-    LayerNorm, LayoutManage, RmsNorm, Tensor,
-    ext::{LayoutManageExt, MemManageExt},
+    Context, Tensor, VirtualMachine,
+    op::{LayerNorm, RmsNorm},
 };
 use digit_layout::DigitLayout;
 
-pub enum Normalization {
-    LayerNorm {
-        y: Tensor,
-        x: Tensor,
-        w: Tensor,
-        b: Tensor,
-    },
-    RmsNorm {
-        y: Tensor,
-        x: Tensor,
-        w: Tensor,
-        epsilon: f32,
-    },
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct Meta {
+pub struct Normalization {
     ty: Type,
-    dt_a: DigitLayout,
     dt_w: DigitLayout,
-    d: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Type {
-    LayerNorm,
     RmsNorm { epsilon: f32 },
+    LayerNorm,
 }
 
-#[derive(Clone, Copy)]
-pub enum Arg {
-    Y,
-    X,
-    W,
-    B,
+def!(Args: <mut: y> <ref: x>);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Obj {
+    Scale,
+    Bias,
 }
 
-impl Meta {
-    pub fn build(&self, env: &impl LayoutManage) -> Normalization {
-        let &Self { ty, dt_a, dt_w, d } = self;
-        let n = env.get_dim(Arg::Y, 0);
+pub trait Ops: LayerNorm + RmsNorm {}
+impl<VM> Ops for VM where VM: LayerNorm + RmsNorm {}
+
+impl<VM> NuralNetwork<VM> for Normalization
+where
+    VM: VirtualMachine + ?Sized + Ops,
+{
+    type Args<'ctx, 'vm: 'ctx>
+        = Args<'ctx, 'vm, VM>
+    where
+        VM: 'vm;
+    type Obj = Obj;
+    type Sub = ();
+
+    fn launch(&self, args: Self::Args<'_, '_>, mut ctx: Context<VM, Self>) {
+        let &Self { ty, dt_w } = self;
+        let Args { y, x } = args;
+
+        assert_eq!(y.dt(), x.dt());
+        assert_eq!(y.shape(), x.shape());
+        let &[_, d] = y.shape() else { panic!() };
 
         match ty {
-            Type::LayerNorm => Normalization::LayerNorm {
-                y: env.tensor(Arg::Y, dt_a, &[n, d]),
-                x: env.tensor(Arg::X, dt_a, &[n, d]),
-                w: env.tensor(Arg::W, dt_w, &[d]),
-                b: env.tensor(Arg::B, dt_w, &[d]),
-            },
-            Type::RmsNorm { epsilon } => Normalization::RmsNorm {
-                y: env.tensor(Arg::Y, dt_a, &[n, d]),
-                x: env.tensor(Arg::X, dt_a, &[n, d]),
-                w: env.tensor(Arg::W, dt_w, &[d]),
-                epsilon,
-            },
-        }
-    }
-}
-
-pub trait Env: LayerNorm + RmsNorm {}
-
-impl Normalization {
-    pub fn launch(&self, env: &impl Env) {
-        match self {
-            Self::LayerNorm { y, x, w, b } => {
-                let mut y = env.tensor(Arg::Y, y, true);
-                let x = env.tensor(Arg::X, x, false);
-                let w = env.tensor(Arg::W, w, false);
-                let b = env.tensor(Arg::B, b, false);
-                env.layer_norm(&mut y, &x, &w, &b)
+            Type::RmsNorm { epsilon } => {
+                let w = ctx.get_mapped(Obj::Scale, dt_w, &[d]);
+                ctx.rms_norm(y, x, &w, epsilon)
             }
-            Self::RmsNorm { y, x, w, epsilon } => {
-                let mut y = env.tensor(Arg::Y, y, true);
-                let x = env.tensor(Arg::X, x, false);
-                let w = env.tensor(Arg::W, w, false);
-                env.rms_norm(&mut y, &x, &w, *epsilon)
+            Type::LayerNorm => {
+                let w = ctx.get_mapped(Obj::Scale, dt_w, &[d]);
+                let b = ctx.get_mapped(Obj::Bias, dt_w, &[d]);
+                ctx.layer_norm(y, x, &w, &b)
             }
         }
     }
@@ -87,37 +62,31 @@ impl Normalization {
 
 #[cfg(test)]
 mod test {
-    use super::{Arg, Env, Meta, Type};
-    use crate::{
-        Tensor,
-        test_recorder::{TestLayoutManager, TestMemManager, TestMemManagerLoader},
-    };
+    use super::{Args, Normalization, Obj, Type};
+    use crate::{Exec, Map, VirtualMachine, test::TestVM};
     use digit_layout::types as ty;
-
-    impl Env for TestMemManager {}
 
     #[test]
     fn test() {
-        let dt_a = ty::F16;
-        let dt_w = ty::F32;
-        let d = 2048;
-        let batch_size = 7;
+        let vm = TestVM::default();
+        let pid = vm.register("norm");
+        let device = 0;
 
-        let meta = Meta {
-            ty: Type::RmsNorm { epsilon: 1e-5 },
-            dt_a,
-            dt_w,
-            d,
-        };
-        let a = Tensor::new(dt_a, &[batch_size, d]).layout;
-        let w = Tensor::new(dt_w, &[d]).layout;
+        let w = vec![0u8; 1024 * 4];
+        let norm = vm.map::<Normalization>(pid, device);
+        norm.map_host(Obj::Scale, Box::new(w));
 
-        let lm = TestLayoutManager::from([(Arg::Y, a.clone()), (Arg::X, a), (Arg::W, w)]);
-        let act = meta.build(&lm);
+        let mut y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
+        let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
 
-        let mm = TestMemManagerLoader::new([Arg::Y], [Arg::X, Arg::W]).build();
-        act.launch(&mm);
-
-        println!("{mm}")
+        vm.exec(
+            pid,
+            device,
+            &Normalization {
+                ty: Type::RmsNorm { epsilon: 1e-5 },
+                dt_w: ty::F32,
+            },
+            Args { y: &mut y, x: &x },
+        )
     }
 }
