@@ -1,11 +1,21 @@
-use crate::{Id, Tensor, VirtualMachine, nn::NuralNetwork, pid};
+use crate::{Id, Tensor, VirtualMachine, dev_id, nn::NuralNetwork, pid};
 use digit_layout::DigitLayout;
-use std::{marker::PhantomData, ops::Deref};
+use std::{fmt, marker::PhantomData, ops::Deref};
 
 pub struct Context<'vm, VM: ?Sized, NN> {
-    stack: Stack<'vm>,
+    stack: &'vm mut Vec<u8>,
     pub(crate) vm: &'vm VM,
     _nn: PhantomData<NN>,
+}
+
+impl<'vm, VM: ?Sized, NN> Context<'vm, VM, NN> {
+    pub fn stack(&self) -> ObjId {
+        stack(&self.stack)
+    }
+
+    fn obj_id(&self, which: impl Id) -> ObjId {
+        obj_id(&self.stack, which)
+    }
 }
 
 impl<'vm, VM, NN> Context<'vm, VM, NN>
@@ -14,42 +24,41 @@ where
     NN: NuralNetwork<VM>,
 {
     pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, sub: &Sub, args: Sub::Args<'_>) {
-        let stack = self.stack.push(id);
+        push(&mut self.stack, id);
 
         sub.launch(
             args,
             Context {
-                stack,
+                stack: self.stack,
                 vm: self.vm,
                 _nn: PhantomData,
             },
         );
 
-        self.stack.pop::<NN::Sub>()
+        pop::<NN::Sub>(&mut self.stack)
     }
 
     pub fn workspace(&self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
         let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
-        let blob = self.vm.alloc(self.stack.free_obj(), size);
+        let blob = self.vm.alloc(self.stack(), size);
         Tensor::new(dt, shape, blob, self.vm)
     }
 
     pub fn get_mapped(&self, which: NN::Obj, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
-        let blob = self.vm.get_mapped(obj_id(self.stack.0, which));
+        let blob = self.vm.get_mapped(self.obj_id(which));
         Tensor::new(dt, shape, blob, self.vm)
     }
 }
 
 pub trait Exec: VirtualMachine {
-    /// 在指定设备上启动一个上下文。
-    fn exec<NN: NuralNetwork<Self>>(&self, pid: u64, device: usize, nn: &NN, args: NN::Args<'_>) {
-        let mut stack = pid.as_slice().to_vec();
-        stack.extend_from_slice(device.as_slice());
+    /// 在指定设备上执行一个网络。
+    fn exec<NN: NuralNetwork<Self>>(&self, pid: u64, device: dev_id, nn: &NN, args: NN::Args<'_>) {
+        let mut stack = StackHeader { pid, device }.as_slice().to_vec();
 
         nn.launch(
             args,
             Context {
-                stack: Stack(&mut stack),
+                stack: &mut stack,
                 vm: self,
                 _nn: PhantomData,
             },
@@ -58,15 +67,15 @@ pub trait Exec: VirtualMachine {
 
     fn workspace<'vm>(
         &'vm self,
-        device: Option<usize>,
+        device: Option<dev_id>,
         dt: DigitLayout,
         shape: &[usize],
     ) -> Tensor<'vm, Self> {
-        let obj = if let Some(device) = device {
-            ObjId(device.as_slice().to_vec().into())
-        } else {
-            ObjId(Box::new([]))
+        let header = StackHeader {
+            pid: pid::MAX,
+            device: device.unwrap_or(dev_id::MAX),
         };
+        let obj = stack(header.as_slice());
         let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
         let blob = self.alloc(obj, size);
         Tensor::new(dt, shape, blob, self)
@@ -77,7 +86,7 @@ impl<VM: VirtualMachine> Exec for VM {}
 
 pub trait Map: VirtualMachine {
     /// 在指定设备上启动一个上下文。
-    fn map<NN: NuralNetwork<Self>>(&self, pid: u64, device: usize) -> Mapping<Self, NN> {
+    fn map<NN: NuralNetwork<Self>>(&self, pid: u64, device: dev_id) -> Mapping<Self, NN> {
         let mut stack = pid.as_slice().to_vec();
         stack.extend_from_slice(device.as_slice());
         Mapping {
@@ -103,7 +112,7 @@ where
 {
     pub fn step_into<Sub: NuralNetwork<VM>>(&self, sub: NN::Sub) -> Mapping<VM, Sub> {
         let mut stack = self.stack.clone();
-        Stack(&mut stack).push(sub);
+        push(&mut stack, sub);
         Mapping {
             stack,
             _nn: PhantomData,
@@ -125,59 +134,82 @@ impl ObjId {
     }
 
     pub fn is_free(&self) -> bool {
-        self.0.len() <= size_of::<pid>() + size_of::<usize>()
-    }
-
-    pub fn device(&self) -> Option<usize> {
-        if self.0.len() >= size_of::<usize>() {
-            Some(usize::from_slice(&self.0[..size_of::<usize>()]))
-        } else {
-            None
-        }
-    }
-
-    pub fn pid(&self) -> Option<pid> {
-        if self.0.len() >= size_of::<usize>() + size_of::<pid>() {
-            Some(pid::from_slice(
-                &self.0[size_of::<usize>()..][..size_of::<pid>()],
-            ))
-        } else {
-            None
-        }
+        self.0[self.0.len() - 1] == 0
     }
 
     pub fn domain(&self) -> String {
-        self.pid().map_or("vm".into(), |pid| format!("#{pid:x}"))
+        unsafe { self.0.as_ptr().cast::<StackHeader>().read_unaligned() }.to_string()
+    }
+
+    pub fn body(&self) -> String {
+        StackBody(&self.0[size_of::<StackHeader>()..]).to_string()
     }
 }
 
-struct Stack<'a>(&'a mut Vec<u8>);
+fn push(vec: &mut Vec<u8>, id: impl Id) {
+    let slice = id.as_slice();
+    vec.push(slice.len() as _);
+    vec.extend_from_slice(slice);
+}
 
-impl Stack<'_> {
-    fn push(&mut self, id: impl Id) -> Stack {
-        let slice = id.as_slice();
-        self.0.push(slice.len() as _);
-        self.0.extend_from_slice(slice);
-        Stack(self.0)
-    }
+fn pop<T: Id>(vec: &mut Vec<u8>) {
+    vec.truncate(vec.len() - size_of::<T>())
+}
 
-    fn pop<T: Id>(&mut self) {
-        self.0.truncate(self.0.len() - size_of::<T>())
-    }
+fn stack(stack: &[u8]) -> ObjId {
+    let mut stack = stack.to_vec();
+    stack.push(0);
+    ObjId(stack.into())
+}
 
-    fn free_obj(&self) -> ObjId {
-        ObjId(
-            self.0[..size_of::<pid>() + size_of::<usize>()]
-                .to_vec()
-                .into(),
-        )
+fn obj_id(stack: &[u8], which: impl Id) -> ObjId {
+    let mut stack = stack.to_vec();
+    push(&mut stack, which);
+    stack.push(1);
+    ObjId(stack.into())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct StackHeader {
+    pid: pid,
+    device: dev_id,
+}
+
+impl fmt::Display for StackHeader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let &Self { pid, device } = self;
+        if pid == pid::MAX {
+            write!(f, "vm:")?
+        } else {
+            write!(f, "#{pid}:")?
+        }
+        if device == dev_id::MAX {
+            write!(f, "H")
+        } else {
+            write!(f, "{device}")
+        }
     }
 }
 
-fn obj_id(vec: &[u8], which: impl Id) -> ObjId {
-    let mut stack = vec.to_vec();
-    let slice = which.as_slice();
-    stack.push(slice.len() as _);
-    stack.extend_from_slice(slice);
-    ObjId(stack.into_boxed_slice())
+struct StackBody<'a>(&'a [u8]);
+
+impl fmt::Display for StackBody<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut slice = self.0;
+        let stack = slice[slice.len() - 1] == 0;
+        slice = &slice[..slice.len() - 1];
+        while let &[len, ref tail @ ..] = slice {
+            write!(f, ".")?;
+            let len = len as usize;
+            let (it, tail) = tail.split_at(len);
+            for &byte in it {
+                write!(f, "{byte:02x}")?
+            }
+            slice = tail
+        }
+        if stack {
+            write!(f, ".*")?
+        }
+        Ok(())
+    }
 }

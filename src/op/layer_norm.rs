@@ -1,8 +1,9 @@
-use crate::{Context, Tensor, VirtualMachine};
+use crate::{Context, ObjId, Tensor, VirtualMachine};
 
 pub trait LayerNorm: VirtualMachine {
     fn layer_norm(
         &self,
+        stack: ObjId,
         y: &mut Tensor<Self>,
         x: &Tensor<Self>,
         w: &Tensor<Self>,
@@ -21,7 +22,7 @@ where
         w: &Tensor<VM>,
         b: &Tensor<VM>,
     ) {
-        self.vm.layer_norm(y, x, w, b)
+        self.vm.layer_norm(self.stack(), y, x, w, b)
     }
 }
 
@@ -29,6 +30,7 @@ where
 impl LayerNorm for crate::test::TestVM {
     fn layer_norm(
         &self,
+        stack: ObjId,
         y: &mut Tensor<Self>,
         x: &Tensor<Self>,
         w: &Tensor<Self>,
@@ -38,12 +40,15 @@ impl LayerNorm for crate::test::TestVM {
         assert_eq!(y.shape(), x.shape());
         assert_eq!(w.dt(), b.dt());
 
-        self.launch(format!(
-            "layer_norm(mut %{}, %{}, %{}, %{})",
-            y.blob().id(),
-            x.blob().id(),
-            w.blob().id(),
-            b.blob().id(),
-        ))
+        self.launch(
+            stack,
+            format!(
+                "layer_norm(mut %{}, %{}, %{}, %{})",
+                y.blob().id(),
+                x.blob().id(),
+                w.blob().id(),
+                b.blob().id(),
+            ),
+        )
     }
 }

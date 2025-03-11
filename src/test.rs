@@ -147,8 +147,8 @@ impl VirtualMachine for TestVM {
 }
 
 impl TestVM {
-    pub(crate) fn launch(&self, info: String) {
-        println!("[vm:_] {info}")
+    pub(crate) fn launch(&self, obj: ObjId, info: String) {
+        println!("[{}] {info} @ {}", obj.domain(), obj.body())
     }
 
     fn alloc_(&self, obj: ObjId, size: usize, ty: BlobType) -> Blob {
@@ -164,16 +164,11 @@ impl TestVM {
         }
 
         let domain = obj.domain();
+        let body = obj.body();
         match &ty {
-            BlobType::Host => println!("[{domain}] alloc %{id} {size} bytes @ Host"),
-            BlobType::Device => println!(
-                "[{domain}] alloc %{id} {size} bytes @ Device{}",
-                obj.device().unwrap()
-            ),
-            BlobType::Map(_) => println!(
-                "[{domain}] map %{id} {size} bytes @ Device{}",
-                obj.device().unwrap()
-            ),
+            BlobType::Host => println!("[{domain}] alloc %{id} {size} bytes @ {body}"),
+            BlobType::Device => println!("[{domain}] alloc %{id} {size} bytes @ {body}"),
+            BlobType::Map(_) => println!("[{domain}] map %{id} {size} bytes @ {body}"),
         }
 
         let mut bcb = Bcb {

@@ -1,8 +1,9 @@
-use crate::{Context, Tensor, VirtualMachine};
+use crate::{Context, ObjId, Tensor, VirtualMachine};
 
 pub trait MatMul: VirtualMachine {
     fn mat_mul(
         &self,
+        stack: ObjId,
         c: &mut Tensor<Self>,
         beta: f32,
         a: &Tensor<Self>,
@@ -23,7 +24,7 @@ where
         b: &Tensor<VM>,
         alpha: f32,
     ) {
-        self.vm.mat_mul(c, beta, a, b, alpha)
+        self.vm.mat_mul(self.stack(), c, beta, a, b, alpha)
     }
 }
 
@@ -31,6 +32,7 @@ where
 impl MatMul for crate::test::TestVM {
     fn mat_mul(
         &self,
+        stack: ObjId,
         c: &mut Tensor<Self>,
         beta: f32,
         a: &Tensor<Self>,
@@ -62,11 +64,14 @@ impl MatMul for crate::test::TestVM {
             [..] => panic!(),
         }
 
-        self.launch(format!(
-            "mat-mul(mut %{}, {beta:.2e}, %{}, %{}, {alpha:.2e})",
-            c.blob().id(),
-            a.blob().id(),
-            b.blob().id(),
-        ))
+        self.launch(
+            stack,
+            format!(
+                "mat-mul(mut %{}, {beta:.2e}, %{}, %{}, {alpha:.2e})",
+                c.blob().id(),
+                a.blob().id(),
+                b.blob().id(),
+            ),
+        )
     }
 }
