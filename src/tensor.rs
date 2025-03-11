@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{Blob, VirtualMachine};
 use digit_layout::DigitLayout;
 use ndarray_layout::{ArrayLayout, Endian::BigEndian};
@@ -5,8 +7,12 @@ use ndarray_layout::{ArrayLayout, Endian::BigEndian};
 pub struct Tensor<'vm, VM: VirtualMachine + ?Sized> {
     dt: DigitLayout,
     layout: ArrayLayout<4>,
-    blob: Option<VM::Blob>,
+    blob: Rc<BlobGuard<'vm, VM>>,
+}
+
+struct BlobGuard<'vm, VM: VirtualMachine + ?Sized> {
     vm: &'vm VM,
+    blob: Option<VM::Blob>,
 }
 
 impl<'vm, VM: VirtualMachine + ?Sized> Tensor<'vm, VM> {
@@ -17,26 +23,27 @@ impl<'vm, VM: VirtualMachine + ?Sized> Tensor<'vm, VM> {
         Self {
             dt,
             layout,
-            blob: Some(blob),
-            vm,
+            blob: Rc::new(BlobGuard {
+                vm,
+                blob: Some(blob),
+            }),
         }
     }
 }
 
-impl<VM: VirtualMachine + ?Sized> Clone for Tensor<'_, VM> {
+impl<'vm, VM: VirtualMachine + ?Sized> Clone for Tensor<'vm, VM> {
     fn clone(&self) -> Self {
         Self {
             dt: self.dt,
             layout: self.layout.clone(),
-            blob: Some(self.vm.retain(self.blob())),
-            vm: self.vm,
+            blob: self.blob.clone(),
         }
     }
 }
 
-impl<VM: VirtualMachine + ?Sized> Drop for Tensor<'_, VM> {
+impl<VM: VirtualMachine + ?Sized> Drop for BlobGuard<'_, VM> {
     fn drop(&mut self) {
-        self.vm.release(self.blob.take().unwrap())
+        self.vm.free(self.blob.take().unwrap())
     }
 }
 
@@ -58,7 +65,7 @@ impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
     }
 
     pub fn blob(&self) -> &VM::Blob {
-        self.blob.as_ref().unwrap()
+        self.blob.blob.as_ref().unwrap()
     }
 
     pub fn check_dt_same(mut tensors: &[&Tensor<VM>]) -> Option<DigitLayout> {

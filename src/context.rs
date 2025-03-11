@@ -121,7 +121,8 @@ where
     }
 
     pub fn map_host(&self, which: NN::Obj, mem: Box<dyn Deref<Target = [u8]>>) {
-        self.vm.map_host(obj_id(&self.stack, which), mem);
+        self.vm
+            .free(self.vm.map_host(obj_id(&self.stack, which), mem))
     }
 }
 

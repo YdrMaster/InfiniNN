@@ -45,11 +45,8 @@ pub trait VirtualMachine {
     /// 为 `obj` 对应的对象分配容量为 `size` 字节的设备存储空间，返回对象标识符。
     fn alloc(&self, obj: ObjId, size: usize) -> Self::Blob;
 
-    /// 重新借用 blob 的一个副本，即引用计数 +1。
-    fn retain(&self, obj: &Self::Blob) -> Self::Blob;
-
-    /// 释放 `blob` 的一个副本，即引用计数 -1。
-    fn release(&self, blob: Self::Blob);
+    /// 释放 `blob`。
+    fn free(&self, blob: Self::Blob);
 
     /// 创建一个通信组，包含 `devices` 列表中的设备。
     fn comm(&self, devices: &[usize]) -> Self::CommGroup;
