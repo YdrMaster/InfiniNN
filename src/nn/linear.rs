@@ -70,7 +70,7 @@ mod test {
     #[test]
     fn test() {
         let vm = TestVM::default();
-        let pid = vm.register("norm");
+        let pid = vm.register("linear");
         let device = 0;
 
         let w = vec![0u8; 1024 * 1536 * 2];

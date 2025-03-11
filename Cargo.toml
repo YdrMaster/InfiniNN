@@ -7,6 +7,7 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 digit-layout = "0.3"
 ndarray-layout = "0.2"
+itertools = "0.14"
 
 [dev-dependencies]
 patricia_tree = "0.9"

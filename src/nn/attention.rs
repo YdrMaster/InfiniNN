@@ -5,33 +5,27 @@ use crate::{
 };
 
 pub struct Attention {
-    mask: AttnMask,
+    pub mask: AttnMask,
 }
 
 pub struct Args<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    q: Tensor<'vm, VM>, // [nh, n_seq, dh]
-    k: Tensor<'vm, VM>, // [nkvh, kv_seq, dh]
-    v: Tensor<'vm, VM>, // [nkvh, kv_seq, dh]
-    o: Tensor<'vm, VM>, // [nh, n_seq, dh]
-    cache: Option<KVCache<'vm, VM>>,
+    pub q: Tensor<'vm, VM>, // [nh, n_seq, dh]
+    pub k: Tensor<'vm, VM>, // [nkvh, kv_seq, dh]
+    pub v: Tensor<'vm, VM>, // [nkvh, kv_seq, dh]
+    pub o: Tensor<'vm, VM>, // [nh, n_seq, dh]
+    pub cache: Option<KVCache<'vm, VM>>,
 }
 
 pub struct KVCache<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    k_cache: Tensor<'vm, VM>, // [nkvh, k_buf, dh]
-    v_cache: Tensor<'vm, VM>, // [nkvh, v_buf, dh]
-    pos: usize,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Obj {
-    Qbuf,
-    Attn,
+    pub k_cache: Tensor<'vm, VM>, // [k_buf, nkvh, dh]
+    pub v_cache: Tensor<'vm, VM>, // [v_buf, nkvh, dh]
+    pub pos: usize,
 }
 
 pub trait Ops: Rearrange + MatMul + Softmax {}
@@ -45,7 +39,7 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
-    type Obj = Obj;
+    type Obj = ();
     type Sub = ();
 
     fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
@@ -94,9 +88,9 @@ where
         } else if let Some(q_) = q.clone().merge(0, 2) {
             q_.tile(0, &[nkvh, gh * n_seq])
         } else {
-            let mut qx = ctx.workspace(dt, &[nkvh, gh * n_seq, dh]);
+            let mut qx = ctx.workspace(dt, &[nh, n_seq, dh]);
             ctx.rearrange(&mut qx, &q);
-            qx
+            qx.merge(0, 2).unwrap().tile(0, &[nkvh, gh * n_seq])
         };
         {
             let k = k.transpose(&[2, 1]);
@@ -138,7 +132,7 @@ mod test {
     #[test]
     fn test_no_cache() {
         let vm = TestVM::default();
-        let pid = vm.register("norm");
+        let pid = vm.register("attention");
         let device = 0;
 
         {
@@ -171,7 +165,7 @@ mod test {
     #[test]
     fn test_cached() {
         let vm = TestVM::default();
-        let pid = vm.register("norm");
+        let pid = vm.register("attention");
         let device = 0;
 
         {
@@ -188,7 +182,7 @@ mod test {
 
             vm.exec(
                 pid,
-                0,
+                device,
                 &Attention {
                     mask: AttnMask::Causal,
                 },

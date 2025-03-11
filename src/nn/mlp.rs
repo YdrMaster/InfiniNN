@@ -8,7 +8,7 @@ use crate::{
 use digit_layout::DigitLayout;
 
 pub struct Mlp {
-    ty: Type,
+    act: Activation,
     dt_w: DigitLayout,
     di: usize,
     up_bias: bool,
@@ -16,7 +16,7 @@ pub struct Mlp {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Type {
+pub enum Activation {
     SwiGLU,
     GeLU,
 }
@@ -53,7 +53,7 @@ where
 
     fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
         let &Self {
-            ty,
+            act: ty,
             dt_w,
             di,
             up_bias,
@@ -71,8 +71,8 @@ where
         let &[n, d] = y.shape() else { panic!() };
 
         let d_up = match ty {
-            Type::SwiGLU => di * 2,
-            Type::GeLU => di,
+            Activation::SwiGLU => di * 2,
+            Activation::GeLU => di,
         };
         let mut mid = ctx.workspace(dt_a, &[n, d_up]);
 
@@ -89,12 +89,12 @@ where
         );
 
         match ty {
-            Type::SwiGLU => {
+            Activation::SwiGLU => {
                 split!(mid => gate, up; [di, di] @ 1);
                 mid = gate;
                 ctx.swiglu(&mut mid, &up)
             }
-            Type::GeLU => ctx.gelu(&mut mid),
+            Activation::GeLU => ctx.gelu(&mut mid),
         }
 
         let w = ctx
@@ -121,7 +121,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{Args, Mlp, Obj, Type};
+    use super::{Activation, Args, Mlp, Obj};
     use crate::{
         Exec, Map, VirtualMachine,
         nn::linear::{self, Linear},
@@ -132,7 +132,7 @@ mod test {
     #[test]
     fn test() {
         let vm = TestVM::default();
-        let pid = vm.register("norm");
+        let pid = vm.register("mlp");
         let device = 0;
 
         {
@@ -148,9 +148,9 @@ mod test {
 
             vm.exec(
                 pid,
-                0,
+                device,
                 &Mlp {
-                    ty: Type::SwiGLU,
+                    act: Activation::SwiGLU,
                     dt_w: ty::F16,
                     di: 1536,
                     up_bias: false,

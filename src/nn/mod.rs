@@ -4,6 +4,7 @@ pub mod attention;
 pub mod linear;
 pub mod mlp;
 pub mod normalization;
+pub mod self_attn;
 
 pub trait NuralNetwork<VM>: Sized
 where
