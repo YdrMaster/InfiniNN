@@ -1,6 +1,7 @@
 use crate::{Context, Id, VirtualMachine};
 
 pub mod attention;
+pub mod linear;
 pub mod mlp;
 pub mod normalization;
 

@@ -1,6 +1,7 @@
 use super::NuralNetwork;
 use crate::{
     Context, Tensor, VirtualMachine,
+    nn::linear::{self, Linear},
     op::{Add, GeLU, MatMul, Rearrange, SwiGLU},
     split,
 };
@@ -32,9 +33,7 @@ where
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Obj {
-    Wup,
     Wdown,
-    Bup,
     Bdown,
 }
 
@@ -52,7 +51,7 @@ where
     type Obj = Obj;
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
+    fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
         let &Self {
             ty,
             dt_w,
@@ -77,19 +76,17 @@ where
         };
         let mut mid = ctx.workspace(dt_a, &[n, d_up]);
 
-        let beta = if up_bias {
-            let b = ctx.get_mapped(Obj::Bup, dt_w, &[1, d_up]).broadcast(0, n);
-            ctx.rearrange(&mut mid, &b);
-            1.
-        } else {
-            0.
-        };
-        {
-            let w = ctx
-                .get_mapped(Obj::Wup, dt_w, &[d_up, d])
-                .transpose(&[1, 0]);
-            ctx.mat_mul(&mut mid, beta, &x, &w, 1.)
-        }
+        ctx.trap(
+            (),
+            &Linear {
+                dt_w,
+                bias: up_bias,
+            },
+            linear::Args {
+                y: mid.clone(),
+                x: x.clone(),
+            },
+        );
 
         match ty {
             Type::SwiGLU => {
@@ -125,7 +122,11 @@ where
 #[cfg(test)]
 mod test {
     use super::{Args, Mlp, Obj, Type};
-    use crate::{Exec, Map, VirtualMachine, test::TestVM};
+    use crate::{
+        Exec, Map, VirtualMachine,
+        nn::linear::{self, Linear},
+        test::TestVM,
+    };
     use digit_layout::types as ty;
 
     #[test]
@@ -138,7 +139,8 @@ mod test {
             let wup = vec![0u8; 1024 * 1536 * 2 * 2];
             let wdown = vec![0u8; 1024 * 1536 * 2];
             let mlp = vm.map::<Mlp>(pid, device);
-            mlp.map_host(Obj::Wup, Box::new(wup));
+            let linear = mlp.step_into::<Linear>(());
+            linear.map_host(linear::Obj::Weight, Box::new(wup));
             mlp.map_host(Obj::Wdown, Box::new(wdown));
 
             let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);

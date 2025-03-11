@@ -8,13 +8,13 @@ pub struct Context<'vm, VM: ?Sized, NN> {
     _nn: PhantomData<NN>,
 }
 
-impl<'vm, VM: ?Sized, NN> Context<'vm, VM, NN> {
+impl<VM: ?Sized, NN> Context<'_, VM, NN> {
     pub fn stack(&self) -> ObjId {
-        stack(&self.stack)
+        stack(self.stack)
     }
 
     fn obj_id(&self, which: impl Id) -> ObjId {
-        obj_id(&self.stack, which)
+        obj_id(self.stack, which)
     }
 }
 
@@ -24,7 +24,7 @@ where
     NN: NuralNetwork<VM>,
 {
     pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, sub: &Sub, args: Sub::Args<'_>) {
-        push(&mut self.stack, id);
+        push(self.stack, id);
 
         sub.launch(
             args,
@@ -35,7 +35,7 @@ where
             },
         );
 
-        pop::<NN::Sub>(&mut self.stack)
+        pop::<NN::Sub>(self.stack)
     }
 
     pub fn workspace(&self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
@@ -153,7 +153,7 @@ fn push(vec: &mut Vec<u8>, id: impl Id) {
 }
 
 fn pop<T: Id>(vec: &mut Vec<u8>) {
-    vec.truncate(vec.len() - size_of::<T>())
+    vec.truncate(vec.len() - size_of::<T>() - 1)
 }
 
 fn stack(stack: &[u8]) -> ObjId {
@@ -200,12 +200,16 @@ impl fmt::Display for StackBody<'_> {
         slice = &slice[..slice.len() - 1];
         while let &[len, ref tail @ ..] = slice {
             write!(f, ".")?;
-            let len = len as usize;
-            let (it, tail) = tail.split_at(len);
-            for &byte in it {
-                write!(f, "{byte:02x}")?
+            if len == 0 {
+                write!(f, "()")?;
+                slice = tail
+            } else {
+                let (it, tail) = tail.split_at(len as _);
+                for &byte in it {
+                    write!(f, "{byte:02x}")?
+                }
+                slice = tail
             }
-            slice = tail
         }
         if stack {
             write!(f, ".*")?

@@ -44,7 +44,7 @@ where
     type Obj = Obj;
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
+    fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
         let &Self { ty, dt_w } = self;
         let Args { mut y, x } = args;
 
