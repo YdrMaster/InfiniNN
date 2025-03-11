@@ -12,10 +12,20 @@ pub struct Args<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    q: Tensor<'vm, VM>,
-    k: Tensor<'vm, VM>,
-    v: Tensor<'vm, VM>,
-    o: Tensor<'vm, VM>,
+    q: Tensor<'vm, VM>, // [nh, n_seq, dh]
+    k: Tensor<'vm, VM>, // [nkvh, kv_seq, dh]
+    v: Tensor<'vm, VM>, // [nkvh, kv_seq, dh]
+    o: Tensor<'vm, VM>, // [nh, n_seq, dh]
+    cache: Option<KVCache<'vm, VM>>,
+}
+
+pub struct KVCache<'vm, VM>
+where
+    VM: VirtualMachine + ?Sized,
+{
+    k_cache: Tensor<'vm, VM>, // [nkvh, k_buf, dh]
+    v_cache: Tensor<'vm, VM>, // [nkvh, v_buf, dh]
+    pos: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -40,7 +50,13 @@ where
 
     fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
         let &Self { mask } = self;
-        let Args { q, k, v, o } = args;
+        let Args {
+            q,
+            mut k,
+            mut v,
+            o,
+            cache,
+        } = args;
 
         let dt = Tensor::check_dt_same(&[&q, &k, &v, &o]).unwrap();
         assert_eq!(q.shape(), o.shape());
@@ -49,11 +65,29 @@ where
         let &[nh, n_seq, dh] = q.shape() else {
             panic!()
         };
-        let &[nkvh, n_att, dh_] = k.shape() else {
+        let &[nkvh, kv_seq, dh_] = k.shape() else {
             panic!()
         };
+
         let gh = nh / nkvh;
         assert_eq!(dh, dh_);
+
+        let n_att = match cache {
+            Some(KVCache {
+                k_cache,
+                v_cache,
+                pos,
+            }) => {
+                assert_eq!(kv_seq, n_seq);
+                k = concat(&ctx, k_cache, k, pos, n_seq);
+                v = concat(&ctx, v_cache, v, pos, n_seq);
+                pos + n_seq
+            }
+            None => {
+                assert!(kv_seq >= n_seq);
+                kv_seq
+            }
+        };
 
         let mut qx = if gh == 1 {
             q
@@ -79,14 +113,30 @@ where
     }
 }
 
+fn concat<'vm, VM>(
+    ctx: &Context<VM, Attention>,
+    cache: Tensor<'vm, VM>,
+    seq: Tensor<'vm, VM>,
+    pos: usize,
+    n_seq: usize,
+) -> Tensor<'vm, VM>
+where
+    VM: ?Sized + VirtualMachine + Ops,
+{
+    let cache = cache.transpose(&[1, 0]);
+    let mut concat = cache.clone().slice(1, pos, n_seq);
+    ctx.rearrange(&mut concat, &seq);
+    cache.slice(1, 0, pos + n_seq)
+}
+
 #[cfg(test)]
 mod test {
-    use super::{Args, Attention};
+    use super::{Args, Attention, KVCache};
     use crate::{Exec, VirtualMachine, op::AttnMask, test::TestVM};
     use digit_layout::types as ty;
 
     #[test]
-    fn test() {
+    fn test_no_cache() {
         let vm = TestVM::default();
         let pid = vm.register("norm");
         let device = 0;
@@ -105,7 +155,54 @@ mod test {
                 &Attention {
                     mask: AttnMask::Causal,
                 },
-                Args { q, k, v, o },
+                Args {
+                    q,
+                    k,
+                    v,
+                    o,
+                    cache: None,
+                },
+            )
+        }
+
+        vm.unregister(pid)
+    }
+
+    #[test]
+    fn test_cached() {
+        let vm = TestVM::default();
+        let pid = vm.register("norm");
+        let device = 0;
+
+        {
+            let qo = [32, 1, 64];
+            let kv = [4, 1, 64];
+            let kv_cache = [2048, 4, 64];
+            let q = vm.workspace(Some(device), ty::F16, &qo);
+            let k = vm.workspace(Some(device), ty::F16, &kv);
+            let v = vm.workspace(Some(device), ty::F16, &kv);
+            let o = vm.workspace(Some(device), ty::F16, &qo);
+
+            let k_cache = vm.workspace(Some(device), ty::F16, &kv_cache);
+            let v_cache = vm.workspace(Some(device), ty::F16, &kv_cache);
+
+            vm.exec(
+                pid,
+                0,
+                &Attention {
+                    mask: AttnMask::Causal,
+                },
+                Args {
+                    q,
+                    k,
+                    v,
+                    o,
+                    cache: Some(KVCache {
+                        k_cache,
+                        v_cache,
+                        pos: 100,
+                    }),
+                },
             )
         }
 

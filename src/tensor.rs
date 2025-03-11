@@ -1,8 +1,7 @@
-use std::rc::Rc;
-
 use crate::{Blob, VirtualMachine};
 use digit_layout::DigitLayout;
 use ndarray_layout::{ArrayLayout, Endian::BigEndian};
+use std::rc::Rc;
 
 pub struct Tensor<'vm, VM: VirtualMachine + ?Sized> {
     dt: DigitLayout,
@@ -31,7 +30,7 @@ impl<'vm, VM: VirtualMachine + ?Sized> Tensor<'vm, VM> {
     }
 }
 
-impl<'vm, VM: VirtualMachine + ?Sized> Clone for Tensor<'vm, VM> {
+impl<VM: VirtualMachine + ?Sized> Clone for Tensor<'_, VM> {
     fn clone(&self) -> Self {
         Self {
             dt: self.dt,
@@ -101,6 +100,10 @@ impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
 
     pub fn transpose(self, perm: &[usize]) -> Self {
         self.map_layout(|l| l.transpose(perm))
+    }
+
+    pub fn slice(self, axis: usize, start: usize, len: usize) -> Self {
+        self.map_layout(|l| l.slice(axis, start, 1, len))
     }
 
     pub fn split<'a>(&'a self, axis: usize, parts: &'a [usize]) -> impl Iterator<Item = Self> + 'a {
