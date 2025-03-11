@@ -41,7 +41,7 @@ impl<VM: VirtualMachine + ?Sized> Drop for Tensor<'_, VM> {
 }
 
 impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
-    pub fn dt(&self) -> DigitLayout {
+    pub const fn dt(&self) -> DigitLayout {
         self.dt
     }
 
@@ -61,6 +61,23 @@ impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
         self.blob.as_ref().unwrap()
     }
 
+    pub fn check_dt_same(mut tensors: &[&Tensor<VM>]) -> Option<DigitLayout> {
+        let mut ans = None;
+        while let [head, tail @ ..] = tensors {
+            tensors = tail;
+            if let Some(dt) = ans {
+                if head.dt != dt {
+                    return None;
+                }
+            } else {
+                ans = Some(head.dt)
+            }
+        }
+        ans
+    }
+}
+
+impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
     pub fn merge(self, start: usize, len: usize) -> Option<Self> {
         self.layout
             .merge_be(start, len)

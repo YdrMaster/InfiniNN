@@ -1,4 +1,4 @@
-use super::{NuralNetwork, def};
+use super::NuralNetwork;
 use crate::{
     Context, Tensor, VirtualMachine,
     op::{LayerNorm, RmsNorm},
@@ -16,7 +16,13 @@ pub enum Type {
     LayerNorm,
 }
 
-def!(Args: <mut: y> <ref: x>);
+pub struct Args<'vm, VM>
+where
+    VM: VirtualMachine + ?Sized,
+{
+    y: Tensor<'vm, VM>,
+    x: Tensor<'vm, VM>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Obj {
@@ -31,30 +37,30 @@ impl<VM> NuralNetwork<VM> for Normalization
 where
     VM: VirtualMachine + ?Sized + Ops,
 {
-    type Args<'ctx, 'vm: 'ctx>
-        = Args<'ctx, 'vm, VM>
+    type Args<'vm>
+        = Args<'vm, VM>
     where
         VM: 'vm;
     type Obj = Obj;
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_, '_>, mut ctx: Context<VM, Self>) {
+    fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
         let &Self { ty, dt_w } = self;
-        let Args { y, x } = args;
+        let Args { mut y, x } = args;
 
-        assert_eq!(y.dt(), x.dt());
+        let _dt = Tensor::check_dt_same(&[&y, &x]).unwrap();
         assert_eq!(y.shape(), x.shape());
         let &[_, d] = y.shape() else { panic!() };
 
         match ty {
             Type::RmsNorm { epsilon } => {
                 let w = ctx.get_mapped(Obj::Scale, dt_w, &[d]);
-                ctx.rms_norm(y, x, &w, epsilon)
+                ctx.rms_norm(&mut y, &x, &w, epsilon)
             }
             Type::LayerNorm => {
                 let w = ctx.get_mapped(Obj::Scale, dt_w, &[d]);
                 let b = ctx.get_mapped(Obj::Bias, dt_w, &[d]);
-                ctx.layer_norm(y, x, &w, &b)
+                ctx.layer_norm(&mut y, &x, &w, &b)
             }
         }
     }
@@ -76,7 +82,7 @@ mod test {
         let norm = vm.map::<Normalization>(pid, device);
         norm.map_host(Obj::Scale, Box::new(w));
 
-        let mut y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
+        let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
         let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
 
         vm.exec(
@@ -86,7 +92,7 @@ mod test {
                 ty: Type::RmsNorm { epsilon: 1e-5 },
                 dt_w: ty::F32,
             },
-            Args { y: &mut y, x: &x },
+            Args { y, x },
         )
     }
 }

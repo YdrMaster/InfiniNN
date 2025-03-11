@@ -1,4 +1,4 @@
-use super::{NuralNetwork, def};
+use super::NuralNetwork;
 use crate::{
     Context, Tensor, VirtualMachine,
     op::{Add, GeLU, MatMul, Rearrange, SwiGLU},
@@ -20,7 +20,15 @@ pub enum Type {
     GeLU,
 }
 
-def!(Args: <mut: y, x> scale: f32, residual: bool);
+pub struct Args<'vm, VM>
+where
+    VM: VirtualMachine + ?Sized,
+{
+    y: Tensor<'vm, VM>,
+    x: Tensor<'vm, VM>,
+    scale: f32,
+    residual: bool,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Obj {
@@ -37,14 +45,14 @@ impl<VM> NuralNetwork<VM> for Mlp
 where
     VM: VirtualMachine + ?Sized + Ops,
 {
-    type Args<'ctx, 'vm: 'ctx>
-        = Args<'ctx, 'vm, VM>
+    type Args<'vm>
+        = Args<'vm, VM>
     where
         VM: 'vm;
     type Obj = Obj;
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_, '_>, mut ctx: Context<VM, Self>) {
+    fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
         let &Self {
             ty,
             dt_w,
@@ -53,13 +61,13 @@ where
             down_bias,
         } = self;
         let Args {
-            y,
-            x,
+            mut y,
+            mut x,
             scale,
             residual,
         } = args;
 
-        assert_eq!(y.dt(), x.dt());
+        let dt_a = Tensor::check_dt_same(&[&y, &x]).unwrap();
         assert_eq!(y.shape(), x.shape());
         let &[n, d] = y.shape() else { panic!() };
 
@@ -67,7 +75,7 @@ where
             Type::SwiGLU => di * 2,
             Type::GeLU => di,
         };
-        let mut mid = ctx.workspace(y.dt(), &[n, d_up]);
+        let mut mid = ctx.workspace(dt_a, &[n, d_up]);
 
         let beta = if up_bias {
             let b = ctx.get_mapped(Obj::Bup, dt_w, &[1, d_up]).broadcast(0, n);
@@ -80,7 +88,7 @@ where
             let w = ctx
                 .get_mapped(Obj::Wup, dt_w, &[d_up, d])
                 .transpose(&[1, 0]);
-            ctx.mat_mul(&mut mid, beta, x, &w, 1.)
+            ctx.mat_mul(&mut mid, beta, &x, &w, 1.)
         }
 
         match ty {
@@ -97,7 +105,7 @@ where
             .transpose(&[1, 0]);
         if down_bias {
             {
-                let x1 = if residual { &mut *x } else { &mut *y };
+                let x1 = if residual { &mut x } else { &mut y };
                 {
                     let down_bias = ctx.get_mapped(Obj::Bdown, dt_w, &[1, d]).broadcast(0, n);
                     ctx.rearrange(x1, &down_bias)
@@ -105,11 +113,11 @@ where
                 ctx.mat_mul(x1, scale, &mid, &w, scale)
             }
             if residual {
-                ctx.add(y, x)
+                ctx.add(&mut y, &x)
             }
         } else {
             let beta = if residual { 1. } else { 0. };
-            ctx.mat_mul(y, beta, &mid, &w, scale)
+            ctx.mat_mul(&mut y, beta, &mid, &w, scale)
         }
     }
 }
@@ -133,8 +141,8 @@ mod test {
             mlp.map_host(Obj::Wup, Box::new(wup));
             mlp.map_host(Obj::Wdown, Box::new(wdown));
 
-            let mut y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
-            let mut x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
+            let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
+            let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
 
             vm.exec(
                 pid,
@@ -147,8 +155,8 @@ mod test {
                     down_bias: false,
                 },
                 Args {
-                    y: &mut y,
-                    x: &mut x,
+                    y,
+                    x,
                     scale: 1.,
                     residual: true,
                 },

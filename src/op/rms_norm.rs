@@ -8,7 +8,7 @@ impl<VM, NN> Context<'_, VM, NN>
 where
     VM: RmsNorm + ?Sized,
 {
-    pub fn rms_norm(&mut self, y: &mut Tensor<VM>, x: &Tensor<VM>, w: &Tensor<VM>, epsilon: f32) {
+    pub fn rms_norm(&self, y: &mut Tensor<VM>, x: &Tensor<VM>, w: &Tensor<VM>, epsilon: f32) {
         self.vm.rms_norm(y, x, w, epsilon)
     }
 }

@@ -8,7 +8,7 @@ impl<VM, NN> Context<'_, VM, NN>
 where
     VM: Add + ?Sized,
 {
-    pub fn add(&mut self, y: &mut Tensor<VM>, x: &Tensor<VM>) {
+    pub fn add(&self, y: &mut Tensor<VM>, x: &Tensor<VM>) {
         self.vm.add(y, x)
     }
 }

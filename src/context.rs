@@ -13,7 +13,7 @@ where
     VM: VirtualMachine + ?Sized,
     NN: NuralNetwork<VM>,
 {
-    pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, sub: &Sub, args: Sub::Args<'_, '_>) {
+    pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, sub: &Sub, args: Sub::Args<'_>) {
         let stack = self.stack.push(id);
 
         sub.launch(
@@ -42,13 +42,7 @@ where
 
 pub trait Exec: VirtualMachine {
     /// 在指定设备上启动一个上下文。
-    fn exec<NN: NuralNetwork<Self>>(
-        &self,
-        pid: u64,
-        device: usize,
-        nn: &NN,
-        args: NN::Args<'_, '_>,
-    ) {
+    fn exec<NN: NuralNetwork<Self>>(&self, pid: u64, device: usize, nn: &NN, args: NN::Args<'_>) {
         let mut stack = pid.as_slice().to_vec();
         stack.extend_from_slice(device.as_slice());
 

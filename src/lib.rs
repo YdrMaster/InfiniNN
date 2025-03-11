@@ -13,6 +13,9 @@ pub use tensor::Tensor;
 #[allow(non_camel_case_types)]
 pub type pid = u64;
 
+#[allow(non_camel_case_types)]
+pub type dev_id = u64;
+
 /// 人工智能虚拟系统。
 pub trait VirtualMachine {
     /// 存储标识符。

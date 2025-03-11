@@ -84,12 +84,12 @@ impl VirtualMachine for TestVM {
         let mut internal = self.0.borrow_mut();
         let pid = internal.next_pid;
         internal.next_pid += 1;
-        println!("[vm] register {arch} -> #{pid:x}");
+        println!("[vm:_] register {arch} -> #{pid:x}");
         pid
     }
 
     fn unregister(&self, pid: pid) {
-        println!("[vm] unregister #{pid:x}")
+        println!("[vm:_] unregister #{pid:x}")
     }
 
     fn map_host(&self, obj: ObjId, mem: Box<dyn Deref<Target = [u8]>>) -> Self::Blob {
@@ -148,7 +148,7 @@ impl VirtualMachine for TestVM {
 
 impl TestVM {
     pub(crate) fn launch(&self, info: String) {
-        println!("[vm] {info}")
+        println!("[vm:_] {info}")
     }
 
     fn alloc_(&self, obj: ObjId, size: usize, ty: BlobType) -> Blob {
