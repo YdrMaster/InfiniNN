@@ -62,25 +62,12 @@ struct Bcb {
     id: usize,
     n_bytes: usize,
     obj: ObjId,
-    _ty: Placement,
-}
-
-enum Placement {
-    Host,
-    Device,
-    Mapped {
-        rc: usize,
-        _map: Box<dyn Deref<Target = [u8]>>,
-    },
+    rc: usize,
 }
 
 impl VirtualMachine for TestVM {
     type Blob = Blob;
     type CommGroup = CommGroup;
-
-    fn num_devices(&self) -> usize {
-        1
-    }
 
     fn register(&self, arch: &str) -> pid {
         let mut internal = self.0.borrow_mut();
@@ -95,11 +82,7 @@ impl VirtualMachine for TestVM {
     }
 
     fn map_host(&self, obj: ObjId, mem: Box<dyn Deref<Target = [u8]>>) -> Self::Blob {
-        self.alloc_(
-            obj.clone(),
-            mem.len(),
-            Placement::Mapped { rc: 1, _map: mem },
-        )
+        self.alloc_(obj.clone(), mem.len())
     }
 
     fn get_mapped(&self, obj: ObjId) -> Self::Blob {
@@ -110,38 +93,27 @@ impl VirtualMachine for TestVM {
         println!("{} load %{id} @ {}", obj.domain(), obj.body());
 
         let bcb = internal.bcbs.get_mut(&id).unwrap();
-        match &mut bcb._ty {
-            Placement::Mapped { rc, .. } => *rc += 1,
-            Placement::Host | Placement::Device => unreachable!(),
-        }
+        bcb.rc += 1;
         Blob {
             id: bcb.id,
             n_bytes: bcb.n_bytes,
         }
     }
 
-    fn alloc_host(&self, obj: ObjId, size: usize) -> Self::Blob {
-        self.alloc_(obj, size, Placement::Host)
-    }
-
     fn alloc(&self, obj: ObjId, size: usize) -> Self::Blob {
-        self.alloc_(obj, size, Placement::Device)
+        self.alloc_(obj, size)
     }
 
     fn free(&self, blob: Self::Blob) {
         let mut internal = self.0.borrow_mut();
+        let Internal { maps, bcbs, .. } = &mut *internal;
 
-        let bcb = internal.bcbs.get_mut(&blob.id).unwrap();
-        match &mut bcb._ty {
-            Placement::Host | Placement::Device => {
-                println!("{} free %{}", bcb.obj.domain(), bcb.id);
-                internal.bcbs.remove(&blob.id);
-            }
-            Placement::Mapped { rc, .. } => {
-                *rc -= 1;
-                if *rc == 0 {
-                    println!("{} free %{}", bcb.obj.domain(), bcb.id)
-                }
+        let bcb = bcbs.get_mut(&blob.id).unwrap();
+        bcb.rc -= 1;
+        if bcb.rc == 0 {
+            if !maps.contains_key(bcb.obj.as_str()) {
+                let bcb = bcbs.remove(&blob.id).unwrap();
+                println!("{} free %{}", bcb.obj.domain(), bcb.id)
             }
         }
     }
@@ -156,7 +128,7 @@ impl TestVM {
         println!("{} {info} @ {}", obj.domain(), obj.body())
     }
 
-    fn alloc_(&self, obj: ObjId, size: usize, placement: Placement) -> Blob {
+    fn alloc_(&self, obj: ObjId, size: usize) -> Blob {
         let mut internal = self.0.borrow_mut();
 
         let id = internal.next_blob_id;
@@ -164,20 +136,17 @@ impl TestVM {
 
         let domain = obj.domain();
         let body = obj.body();
-        match &placement {
-            Placement::Host => println!("{domain} alloc %{id} {size} bytes @ {body}"),
-            Placement::Device => println!("{domain} alloc %{id} {size} bytes @ {body}"),
-            Placement::Mapped { .. } => {
-                println!("{domain} map %{id} {size} bytes @ {body}");
-                assert!(internal.maps.insert(obj.as_str(), id).is_none());
-            }
+        println!("{domain} alloc %{id} {size} bytes @ {body}");
+
+        if obj.is_obj() {
+            assert!(internal.maps.insert(obj.as_str(), id).is_none())
         }
 
         let bcb = Bcb {
             id,
             obj,
             n_bytes: size,
-            _ty: placement,
+            rc: 1,
         };
         internal.bcbs.insert(id, bcb);
         Blob { id, n_bytes: size }

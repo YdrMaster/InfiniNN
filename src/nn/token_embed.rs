@@ -84,8 +84,8 @@ mod test {
             DEVICE,
             &TokenEmbed { ntok: N_TOK },
             Args {
-                embed: vm.workspace(Some(DEVICE), DT, &[N, D]),
-                token: vm.workspace(Some(DEVICE), DT_TOK, &[N]),
+                embed: vm.workspace(DT, &[N, D]),
+                token: vm.workspace(DT_TOK, &[N]),
             },
         );
 

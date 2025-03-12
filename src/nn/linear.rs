@@ -97,8 +97,8 @@ mod test {
                     bias: true,
                 },
                 Args {
-                    y: vm.workspace(Some(DEVICE), ty::F16, &[N, DI]),
-                    x: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
+                    y: vm.workspace( ty::F16, &[N, DI]),
+                    x: vm.workspace( ty::F16, &[N, D]),
                 },
             );
         }

@@ -51,15 +51,10 @@ pub trait VirtualMachineExt: VirtualMachine {
         self
     }
 
-    fn workspace<'vm>(
-        &'vm self,
-        device: Option<dev_id>,
-        dt: DigitLayout,
-        shape: &[usize],
-    ) -> Tensor<'vm, Self> {
+    fn workspace<'vm>(&'vm self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, Self> {
         let header = Domain {
             pid: pid::MAX,
-            dev_id: device.unwrap_or(dev_id::MAX),
+            dev_id: dev_id::MAX,
         }
         .to_string();
         let obj = stack(&header);
@@ -151,12 +146,16 @@ where
 #[derive(Clone)]
 pub struct ObjId {
     text: String,
-    _is_obj: bool,
+    is_obj: bool,
 }
 
 impl ObjId {
     pub fn as_str(&self) -> &str {
         &self.text
+    }
+
+    pub fn is_obj(&self) -> bool {
+        self.is_obj
     }
 
     pub fn domain(&self) -> &str {
@@ -188,16 +187,13 @@ fn pop(vec: &mut String, len: usize) {
 fn obj_id(stack: &str, id: impl Id) -> ObjId {
     let mut text = stack.to_string();
     push(&mut text, id);
-    ObjId {
-        text,
-        _is_obj: true,
-    }
+    ObjId { text, is_obj: true }
 }
 
 fn stack(stack: &str) -> ObjId {
     ObjId {
         text: stack.to_string(),
-        _is_obj: false,
+        is_obj: false,
     }
 }
 

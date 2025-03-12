@@ -99,8 +99,8 @@ mod test {
                     dt_w: ty::F32,
                 },
                 Args {
-                    y: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
-                    x: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
+                    y: vm.workspace( ty::F16, &[N, D]),
+                    x: vm.workspace( ty::F16, &[N, D]),
                 },
             );
         }

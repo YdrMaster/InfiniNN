@@ -115,9 +115,9 @@ mod test {
                     bias: true,
                 },
                 Args {
-                    y: vm.workspace(Some(DEVICE), ty::F16, &[N, DI]),
-                    x: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
-                    y_: vm.workspace(Some(DEVICE), ty::F16, &[N, DI]),
+                    y: vm.workspace( ty::F16, &[N, DI]),
+                    x: vm.workspace( ty::F16, &[N, D]),
+                    y_: vm.workspace( ty::F16, &[N, DI]),
                     scale: 1.,
                     residual: true,
                 },

@@ -24,9 +24,6 @@ pub trait VirtualMachine {
     /// 通信组标识符。
     type CommGroup: CommGroup;
 
-    /// 获取虚拟机管理的设备数量。
-    fn num_devices(&self) -> usize;
-
     /// 注册 `arch` 架构的模型，创建一个进程，返回一个 `pid` 标识符。
     fn register(&self, arch: &str) -> pid;
 
@@ -39,9 +36,6 @@ pub trait VirtualMachine {
     /// 获取映射得到的参数。
     fn get_mapped(&self, obj: ObjId) -> Self::Blob;
 
-    /// 为 `obj` 对应的对象分配容量为 `size` 字节的主机存储空间，返回对象标识符。
-    fn alloc_host(&self, obj: ObjId, size: usize) -> Self::Blob;
-
     /// 为 `obj` 对应的对象分配容量为 `size` 字节的设备存储空间，返回对象标识符。
     fn alloc(&self, obj: ObjId, size: usize) -> Self::Blob;
 
@@ -52,7 +46,10 @@ pub trait VirtualMachine {
     fn comm(&self, devices: &[usize]) -> Self::CommGroup;
 }
 
-pub trait Id: Copy + Eq + Send + Sync + 'static {
+pub trait Value: Copy + Eq + Send + Sync + 'static {}
+impl<T> Value for T where T: Copy + Eq + Send + Sync + 'static {}
+
+pub trait Id: Value {
     fn from_slice(slice: &[u8]) -> Self {
         assert_eq!(size_of::<Self>(), slice.len());
         unsafe { slice.as_ptr().cast::<Self>().read_unaligned() }
