@@ -1,6 +1,6 @@
 use super::NuralNetwork;
 use crate::{
-    Blob, Context, Tensor, VirtualMachine,
+    Blob, Context, Mapping, Tensor, VirtualMachine,
     op::{AttnMask, MatMul, Rearrange, Softmax},
 };
 
@@ -39,10 +39,13 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
+    type Data = ();
     type Obj = ();
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
+    fn init(_data: Self::Data, _mapping: Mapping<VM, Self>) {}
+
+    fn forward(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
         let &Self { mask } = self;
         let Args {
             q,
@@ -126,38 +129,32 @@ where
 #[cfg(test)]
 mod test {
     use super::{Args, Attention, KVCache};
-    use crate::{Exec, VirtualMachine, op::AttnMask, test::TestVM};
+    use crate::{VirtualMachine, VirtualMachineExt, dev_id, op::AttnMask, test::TestVM};
     use digit_layout::types as ty;
+
+    const DEVICE: dev_id = 0;
 
     #[test]
     fn test_no_cache() {
         let vm = TestVM::default();
         let pid = vm.register("attention");
-        let device = 0;
 
-        {
-            let qo = [32, 7, 64];
-            let kv = [4, 777, 64];
-            let q = vm.workspace(Some(device), ty::F16, &qo);
-            let k = vm.workspace(Some(device), ty::F16, &kv);
-            let v = vm.workspace(Some(device), ty::F16, &kv);
-            let o = vm.workspace(Some(device), ty::F16, &qo);
-
-            vm.exec(
-                pid,
-                0,
-                &Attention {
-                    mask: AttnMask::Causal,
-                },
-                Args {
-                    q,
-                    k,
-                    v,
-                    o,
-                    cache: None,
-                },
-            )
-        }
+        let qo = [32, 7, 64];
+        let kv = [4, 777, 64];
+        vm.forward(
+            pid,
+            DEVICE,
+            &Attention {
+                mask: AttnMask::Causal,
+            },
+            Args {
+                q: vm.workspace(Some(DEVICE), ty::F16, &qo),
+                k: vm.workspace(Some(DEVICE), ty::F16, &kv),
+                v: vm.workspace(Some(DEVICE), ty::F16, &kv),
+                o: vm.workspace(Some(DEVICE), ty::F16, &qo),
+                cache: None,
+            },
+        );
 
         vm.unregister(pid)
     }
@@ -166,39 +163,28 @@ mod test {
     fn test_cached() {
         let vm = TestVM::default();
         let pid = vm.register("attention");
-        let device = 0;
 
-        {
-            let qo = [32, 1, 64];
-            let kv = [4, 1, 64];
-            let kv_cache = [2048, 4, 64];
-            let q = vm.workspace(Some(device), ty::F16, &qo);
-            let k = vm.workspace(Some(device), ty::F16, &kv);
-            let v = vm.workspace(Some(device), ty::F16, &kv);
-            let o = vm.workspace(Some(device), ty::F16, &qo);
-
-            let k_cache = vm.workspace(Some(device), ty::F16, &kv_cache);
-            let v_cache = vm.workspace(Some(device), ty::F16, &kv_cache);
-
-            vm.exec(
-                pid,
-                device,
-                &Attention {
-                    mask: AttnMask::Causal,
-                },
-                Args {
-                    q,
-                    k,
-                    v,
-                    o,
-                    cache: Some(KVCache {
-                        k_cache,
-                        v_cache,
-                        pos: 100,
-                    }),
-                },
-            )
-        }
+        let qo = [32, 1, 64];
+        let kv = [4, 1, 64];
+        let kv_cache = [2048, 4, 64];
+        vm.forward(
+            pid,
+            DEVICE,
+            &Attention {
+                mask: AttnMask::Causal,
+            },
+            Args {
+                q: vm.workspace(Some(DEVICE), ty::F16, &qo),
+                k: vm.workspace(Some(DEVICE), ty::F16, &kv),
+                v: vm.workspace(Some(DEVICE), ty::F16, &kv),
+                o: vm.workspace(Some(DEVICE), ty::F16, &qo),
+                cache: Some(KVCache {
+                    k_cache: vm.workspace(Some(DEVICE), ty::F16, &kv_cache),
+                    v_cache: vm.workspace(Some(DEVICE), ty::F16, &kv_cache),
+                    pos: 100,
+                }),
+            },
+        );
 
         vm.unregister(pid)
     }

@@ -9,7 +9,7 @@ where
     VM: GeLU + ?Sized,
 {
     pub fn gelu(&self, up: &mut Tensor<VM>) {
-        self.vm.gelu(self.stack(), up)
+        self.vm().gelu(self.stack(), up)
     }
 }
 

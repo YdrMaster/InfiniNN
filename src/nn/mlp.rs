@@ -1,6 +1,6 @@
-use super::{NuralNetwork, linear_residual};
+use super::{NuralNetwork, WeightBiasData, linear_residual};
 use crate::{
-    Context, Id, Tensor, VirtualMachine,
+    Context, Id, Mapping, Tensor, VirtualMachine,
     nn::{
         linear::{self, Linear},
         linear_residual::LinearResidual,
@@ -34,6 +34,11 @@ where
     pub residual: bool,
 }
 
+pub struct Data {
+    pub up: WeightBiasData,
+    pub down: WeightBiasData,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Sub {
     UpLinear,
@@ -60,10 +65,18 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
+    type Data = Data;
     type Obj = ();
     type Sub = Sub;
 
-    fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
+    fn init(weights: Self::Data, mut mapping: Mapping<VM, Self>) {
+        let Self::Data { up, down } = weights;
+        mapping
+            .trap::<Linear>(Sub::UpLinear, up)
+            .trap::<LinearResidual>(Sub::DownLinear, down);
+    }
+
+    fn forward(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
         let &Self {
             act: ty,
             dt_w,
@@ -114,45 +127,54 @@ where
             &LinearResidual {
                 dt_w,
                 bias: down_bias,
+            },
+            linear_residual::Args {
+                y,
+                x: mid,
+                y_: x,
                 scale,
                 residual,
             },
-            linear_residual::Args { y, x: mid, y_: x },
-        )
+        );
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Activation, Args, Mlp, Sub};
-    use crate::{
-        Exec, Map, VirtualMachine,
-        nn::{WeightBias, linear::Linear},
-        test::TestVM,
-    };
+    use super::{Activation, Args, Data, Mlp};
+    use crate::{VirtualMachine, VirtualMachineExt, dev_id, nn::WeightBiasData, test::TestVM};
     use digit_layout::types as ty;
+
+    const DEVICE: dev_id = 0;
+    const D: usize = 1024;
+    const DI: usize = 1536;
+    const N: usize = 7;
 
     #[test]
     fn test() {
         let vm = TestVM::default();
-        let pid = vm.register("mlp");
-        let device = 0;
+        let pid = vm.register("linear");
 
         {
-            let wup = vec![0u8; 1024 * 1536 * 2 * 2];
-            let wdown = vec![0u8; 1024 * 1536 * 2];
-            let mlp = vm.map::<Mlp>(pid, device);
-            mlp.step_into::<Linear>(Sub::UpLinear)
-                .map_host(WeightBias::Weight, Box::new(wup));
-            mlp.step_into::<Linear>(Sub::DownLinear)
-                .map_host(WeightBias::Weight, Box::new(wdown));
-
-            let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
-            let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
-
-            vm.exec(
+            let up = vec![0u8; D * DI * 2 * 2];
+            let down = vec![0u8; DI * D * 2];
+            vm.init::<Mlp>(
                 pid,
-                device,
+                DEVICE,
+                Data {
+                    up: WeightBiasData {
+                        weight: Box::new(up),
+                        bias: None,
+                    },
+                    down: WeightBiasData {
+                        weight: Box::new(down),
+                        bias: None,
+                    },
+                },
+            )
+            .forward(
+                pid,
+                DEVICE,
                 &Mlp {
                     act: Activation::SwiGLU,
                     dt_w: ty::F16,
@@ -161,12 +183,12 @@ mod test {
                     down_bias: false,
                 },
                 Args {
-                    y,
-                    x,
+                    y: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
+                    x: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
                     scale: 1.,
                     residual: true,
                 },
-            )
+            );
         }
 
         vm.unregister(pid)

@@ -9,7 +9,7 @@ where
     VM: Add + ?Sized,
 {
     pub fn add(&self, y: &mut Tensor<VM>, x: &Tensor<VM>) {
-        self.vm.add(self.stack(), y, x)
+        self.vm().add(self.stack(), y, x)
     }
 }
 

@@ -16,7 +16,7 @@ where
     VM: RmsNorm + ?Sized,
 {
     pub fn rms_norm(&self, y: &mut Tensor<VM>, x: &Tensor<VM>, w: &Tensor<VM>, epsilon: f32) {
-        self.vm.rms_norm(self.stack(), y, x, w, epsilon)
+        self.vm().rms_norm(self.stack(), y, x, w, epsilon)
     }
 }
 

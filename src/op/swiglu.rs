@@ -9,7 +9,7 @@ where
     VM: SwiGLU + ?Sized,
 {
     pub fn swiglu(&self, gate: &mut Tensor<VM>, up: &Tensor<VM>) {
-        self.vm.swiglu(self.stack(), gate, up)
+        self.vm().swiglu(self.stack(), gate, up)
     }
 }
 

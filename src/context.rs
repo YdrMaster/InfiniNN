@@ -2,67 +2,53 @@ use crate::{Id, Tensor, VirtualMachine, dev_id, nn::NuralNetwork, pid};
 use digit_layout::DigitLayout;
 use std::{fmt, marker::PhantomData, ops::Deref};
 
-pub struct Context<'vm, VM: ?Sized, NN> {
+#[repr(transparent)]
+pub struct Mapping<'vm, VM: ?Sized, NN>(State<'vm, VM, NN>);
+
+#[repr(transparent)]
+pub struct Context<'vm, VM: ?Sized, NN>(State<'vm, VM, NN>);
+
+struct State<'vm, VM: ?Sized, NN> {
     stack: &'vm mut String,
-    pub(crate) vm: &'vm VM,
+    vm: &'vm VM,
     _nn: PhantomData<NN>,
 }
 
-impl<VM: ?Sized, NN> Context<'_, VM, NN> {
-    pub fn stack(&self) -> ObjId {
-        stack(self.stack)
-    }
-
-    fn obj_id(&self, which: impl Id) -> ObjId {
-        obj_id(self.stack, which)
-    }
-}
-
-impl<'vm, VM, NN> Context<'vm, VM, NN>
-where
-    VM: VirtualMachine + ?Sized,
-    NN: NuralNetwork<VM>,
-{
-    pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, sub: &Sub, args: Sub::Args<'_>) {
-        let len = push(self.stack, id);
-
-        sub.launch(
-            args,
-            Context {
-                stack: self.stack,
-                vm: self.vm,
-                _nn: PhantomData,
-            },
-        );
-
-        pop(self.stack, len)
-    }
-
-    pub fn workspace(&self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
-        let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
-        let blob = self.vm.alloc(self.stack(), size);
-        Tensor::new(dt, shape, blob, self.vm)
-    }
-
-    pub fn get_mapped(&self, which: NN::Obj, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
-        let blob = self.vm.get_mapped(self.obj_id(which));
-        Tensor::new(dt, shape, blob, self.vm)
-    }
-}
-
-pub trait Exec: VirtualMachine {
-    /// 在指定设备上执行一个网络。
-    fn exec<NN: NuralNetwork<Self>>(&self, pid: u64, dev_id: dev_id, nn: &NN, args: NN::Args<'_>) {
+pub trait VirtualMachineExt: VirtualMachine {
+    fn init<NN: NuralNetwork<Self>>(&self, pid: pid, dev_id: dev_id, data: NN::Data) -> &Self {
         let mut stack = Domain { pid, dev_id }.to_string();
 
-        nn.launch(
-            args,
-            Context {
+        NN::init(
+            data,
+            Mapping(State {
                 stack: &mut stack,
                 vm: self,
                 _nn: PhantomData,
-            },
-        )
+            }),
+        );
+
+        self
+    }
+
+    fn forward<NN: NuralNetwork<Self>>(
+        &self,
+        pid: u64,
+        dev_id: dev_id,
+        nn: &NN,
+        args: NN::Args<'_>,
+    ) -> &Self {
+        let mut stack = Domain { pid, dev_id }.to_string();
+
+        nn.forward(
+            args,
+            Context(State {
+                stack: &mut stack,
+                vm: self,
+                _nn: PhantomData,
+            }),
+        );
+
+        self
     }
 
     fn workspace<'vm>(
@@ -83,25 +69,54 @@ pub trait Exec: VirtualMachine {
     }
 }
 
-impl<VM: VirtualMachine> Exec for VM {}
+impl<VM: VirtualMachine> VirtualMachineExt for VM {}
 
-pub trait Map: VirtualMachine {
-    /// 在指定设备上启动一个上下文。
-    fn map<NN: NuralNetwork<Self>>(&self, pid: pid, dev_id: dev_id) -> Mapping<Self, NN> {
-        Mapping {
-            stack: Domain { pid, dev_id }.to_string(),
-            _nn: PhantomData,
-            vm: self,
-        }
+impl<VM: ?Sized, NN> Context<'_, VM, NN> {
+    pub fn stack(&self) -> ObjId {
+        stack(self.0.stack)
+    }
+
+    pub fn vm(&self) -> &VM {
+        self.0.vm
     }
 }
 
-impl<VM: VirtualMachine> Map for VM {}
+impl<'vm, VM, NN> Context<'vm, VM, NN>
+where
+    VM: VirtualMachine + ?Sized,
+    NN: NuralNetwork<VM>,
+{
+    pub fn trap<Sub: NuralNetwork<VM>>(
+        &mut self,
+        id: NN::Sub,
+        sub: &Sub,
+        args: Sub::Args<'_>,
+    ) -> &mut Self {
+        let len = push(self.0.stack, id);
 
-pub struct Mapping<'vm, VM: ?Sized, NN> {
-    stack: String,
-    _nn: PhantomData<NN>,
-    vm: &'vm VM,
+        sub.forward(
+            args,
+            Context(State {
+                stack: self.0.stack,
+                vm: self.0.vm,
+                _nn: PhantomData,
+            }),
+        );
+
+        pop(self.0.stack, len);
+        self
+    }
+
+    pub fn workspace(&self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
+        let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
+        let blob = self.0.vm.alloc(stack(self.0.stack), size);
+        Tensor::new(dt, shape, blob, self.0.vm)
+    }
+
+    pub fn get_mapped(&self, which: NN::Obj, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
+        let blob = self.0.vm.get_mapped(obj_id(self.0.stack, which));
+        Tensor::new(dt, shape, blob, self.0.vm)
+    }
 }
 
 impl<VM, NN> Mapping<'_, VM, NN>
@@ -109,19 +124,27 @@ where
     VM: VirtualMachine + ?Sized,
     NN: NuralNetwork<VM>,
 {
-    pub fn step_into<Sub: NuralNetwork<VM>>(&self, sub: NN::Sub) -> Mapping<VM, Sub> {
-        let mut stack = self.stack.clone();
-        push(&mut stack, sub);
-        Mapping {
-            stack,
-            _nn: PhantomData,
-            vm: self.vm,
-        }
+    pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, data: Sub::Data) -> &mut Self {
+        let len = push(self.0.stack, id);
+
+        Sub::init(
+            data,
+            Mapping(State {
+                stack: self.0.stack,
+                vm: self.0.vm,
+                _nn: PhantomData,
+            }),
+        );
+
+        pop(self.0.stack, len);
+        self
     }
 
-    pub fn map_host(&self, which: NN::Obj, mem: Box<dyn Deref<Target = [u8]>>) {
-        self.vm
-            .free(self.vm.map_host(obj_id(&self.stack, which), mem))
+    pub fn map_host(&mut self, which: NN::Obj, mem: Box<dyn Deref<Target = [u8]>>) -> &mut Self {
+        self.0
+            .vm
+            .free(self.0.vm.map_host(obj_id(self.0.stack, which), mem));
+        self
     }
 }
 

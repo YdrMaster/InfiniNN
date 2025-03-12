@@ -9,7 +9,7 @@ where
     VM: Softmax + ?Sized,
 {
     pub fn softmax(&self, att: &mut Tensor<VM>, mask: AttnMask) {
-        self.vm.softmax(self.stack(), att, mask)
+        self.vm().softmax(self.stack(), att, mask)
     }
 }
 

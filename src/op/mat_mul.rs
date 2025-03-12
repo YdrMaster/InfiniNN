@@ -24,7 +24,7 @@ where
         b: &Tensor<VM>,
         alpha: f32,
     ) {
-        self.vm.mat_mul(self.stack(), c, beta, a, b, alpha)
+        self.vm().mat_mul(self.stack(), c, beta, a, b, alpha)
     }
 }
 

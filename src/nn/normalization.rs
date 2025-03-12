@@ -1,6 +1,6 @@
-use super::{NuralNetwork, WeightBias};
+use super::{NuralNetwork, WeightBias, WeightBiasData};
 use crate::{
-    Context, Tensor, VirtualMachine,
+    Context, Mapping, Tensor, VirtualMachine,
     op::{LayerNorm, RmsNorm},
 };
 use digit_layout::DigitLayout;
@@ -35,10 +35,15 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
+    type Data = WeightBiasData;
     type Obj = WeightBias;
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
+    fn init(weights: Self::Data, mapping: Mapping<VM, Self>) {
+        weights.map(mapping)
+    }
+
+    fn forward(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
         let &Self { ty, dt_w } = self;
         let Args { mut y, x } = args;
 
@@ -62,31 +67,44 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{Args, Normalization, Type, WeightBias};
-    use crate::{Exec, Map, VirtualMachine, test::TestVM};
+    use super::{Args, Normalization, Type};
+    use crate::{VirtualMachine, VirtualMachineExt, dev_id, nn::WeightBiasData, test::TestVM};
     use digit_layout::types as ty;
+
+    const DEVICE: dev_id = 0;
+    const D: usize = 1024;
+    const N: usize = 7;
 
     #[test]
     fn test() {
         let vm = TestVM::default();
         let pid = vm.register("norm");
-        let device = 0;
 
-        let w = vec![0u8; 1024 * 4];
-        let norm = vm.map::<Normalization>(pid, device);
-        norm.map_host(WeightBias::Weight, Box::new(w));
+        {
+            let w = vec![0u8; D * 4];
+            let b = vec![0u8; D * 4];
+            vm.init::<Normalization>(
+                pid,
+                DEVICE,
+                WeightBiasData {
+                    weight: Box::new(w),
+                    bias: Some(Box::new(b)),
+                },
+            )
+            .forward(
+                pid,
+                DEVICE,
+                &Normalization {
+                    ty: Type::RmsNorm { epsilon: 1e-5 },
+                    dt_w: ty::F32,
+                },
+                Args {
+                    y: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
+                    x: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
+                },
+            );
+        }
 
-        let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
-        let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
-
-        vm.exec(
-            pid,
-            device,
-            &Normalization {
-                ty: Type::RmsNorm { epsilon: 1e-5 },
-                dt_w: ty::F32,
-            },
-            Args { y, x },
-        )
+        vm.unregister(pid)
     }
 }

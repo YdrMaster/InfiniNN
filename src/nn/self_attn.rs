@@ -1,9 +1,9 @@
 use super::{
-    NuralNetwork, attention,
+    NuralNetwork, WeightBiasData, attention,
     linear::{self, Linear},
 };
 use crate::{
-    Context, Id, Tensor, VirtualMachine,
+    Context, Id, Mapping, Tensor, VirtualMachine,
     nn::{
         attention::{Attention, KVCache},
         linear_residual::{self, LinearResidual},
@@ -13,6 +13,7 @@ use crate::{
 };
 use digit_layout::DigitLayout;
 use itertools::izip;
+use std::ops::Deref;
 
 pub struct SelfAttn {
     pub dt_w: DigitLayout,
@@ -61,6 +62,13 @@ impl Id for Obj {
     }
 }
 
+pub struct Data {
+    pub qkv: WeightBiasData,
+    pub sin: Box<dyn Deref<Target = [u8]>>,
+    pub cos: Box<dyn Deref<Target = [u8]>>,
+    pub output: WeightBiasData,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Sub {
     QkvLinear,
@@ -96,18 +104,33 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
+    type Data = Data;
     type Obj = Obj;
     type Sub = Sub;
 
-    fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
+    fn init(data: Self::Data, mut mapping: Mapping<VM, Self>) {
+        let Self::Data {
+            qkv,
+            sin,
+            cos,
+            output,
+        } = data;
+        mapping
+            .map_host(Obj::Sin, sin)
+            .map_host(Obj::Cos, cos)
+            .trap::<Linear>(Sub::QkvLinear, qkv)
+            .trap::<LinearResidual>(Sub::OutputLinear, output);
+    }
+
+    fn forward(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
         let &Self {
             dt_w,
             nh,
             nkvh,
             dh,
             mask,
-            qkv_bias: attn_qkv_bias,
-            o_bias: attn_o_bias,
+            qkv_bias,
+            o_bias,
         } = self;
         let Args {
             y,
@@ -126,7 +149,7 @@ where
             Sub::QkvLinear,
             &Linear {
                 dt_w,
-                bias: attn_qkv_bias,
+                bias: qkv_bias,
             },
             linear::Args {
                 y: qkv.clone(),
@@ -175,30 +198,28 @@ where
                         pos,
                     }),
                 },
-            )
+            );
         }
 
         ctx.trap(
             Sub::OutputLinear,
-            &LinearResidual {
-                dt_w,
-                bias: attn_o_bias,
+            &LinearResidual { dt_w, bias: o_bias },
+            linear_residual::Args {
+                y,
+                x: o,
+                y_: x,
                 scale: 1.,
                 residual: true,
             },
-            linear_residual::Args { y, x: o, y_: x },
-        )
+        );
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Args, Obj, Request, SelfAttn, Sub};
+    use super::{Args, Data, Request, SelfAttn};
     use crate::{
-        Exec, Map, VirtualMachine, dev_id,
-        nn::{WeightBias, linear::Linear, linear_residual::LinearResidual},
-        op::AttnMask,
-        test::TestVM,
+        VirtualMachine, VirtualMachineExt, dev_id, nn::WeightBiasData, op::AttnMask, test::TestVM,
     };
     use digit_layout::{DigitLayout, types as ty};
 
@@ -254,20 +275,23 @@ mod test {
             let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
             let attn_o_w = vec![0u8; D * NH * DH * 2];
             let attn_o_b = vec![0u8; D * 2];
-
-            let self_attn = vm.map::<SelfAttn>(pid, DEVICE);
-            self_attn.map_host(Obj::Sin, Box::new(sin));
-            self_attn.map_host(Obj::Cos, Box::new(cos));
-
-            let qkv = self_attn.step_into::<Linear>(Sub::QkvLinear);
-            qkv.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
-            qkv.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
-
-            let output = self_attn.step_into::<LinearResidual>(Sub::OutputLinear);
-            output.map_host(WeightBias::Weight, Box::new(attn_o_w));
-            output.map_host(WeightBias::Bias, Box::new(attn_o_b));
-
-            vm.exec(
+            vm.init::<SelfAttn>(
+                pid,
+                DEVICE,
+                Data {
+                    qkv: WeightBiasData {
+                        weight: Box::new(attn_qkv_w),
+                        bias: Some(Box::new(attn_qkv_b)),
+                    },
+                    sin: Box::new(sin),
+                    cos: Box::new(cos),
+                    output: WeightBiasData {
+                        weight: Box::new(attn_o_w),
+                        bias: Some(Box::new(attn_o_b)),
+                    },
+                },
+            )
+            .forward(
                 pid,
                 DEVICE,
                 &SelfAttn {
@@ -280,7 +304,7 @@ mod test {
                     o_bias: true,
                 },
                 args(&vm),
-            )
+            );
         }
 
         vm.unregister(pid)
@@ -297,19 +321,23 @@ mod test {
             let sin = vec![0u8; MAX_CTX * DH / 2 * 2];
             let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
             let attn_o_w = vec![0u8; D * NH * DH * 2];
-
-            let self_attn = vm.map::<SelfAttn>(pid, DEVICE);
-            self_attn.map_host(Obj::Sin, Box::new(sin));
-            self_attn.map_host(Obj::Cos, Box::new(cos));
-
-            let qkv = self_attn.step_into::<Linear>(Sub::QkvLinear);
-            qkv.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
-            qkv.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
-
-            let output = self_attn.step_into::<LinearResidual>(Sub::OutputLinear);
-            output.map_host(WeightBias::Weight, Box::new(attn_o_w));
-
-            vm.exec(
+            vm.init::<SelfAttn>(
+                pid,
+                DEVICE,
+                Data {
+                    qkv: WeightBiasData {
+                        weight: Box::new(attn_qkv_w),
+                        bias: Some(Box::new(attn_qkv_b)),
+                    },
+                    sin: Box::new(sin),
+                    cos: Box::new(cos),
+                    output: WeightBiasData {
+                        weight: Box::new(attn_o_w),
+                        bias: None,
+                    },
+                },
+            )
+            .forward(
                 pid,
                 DEVICE,
                 &SelfAttn {
@@ -322,7 +350,7 @@ mod test {
                     o_bias: false,
                 },
                 args(&vm),
-            )
+            );
         }
 
         vm.unregister(pid)

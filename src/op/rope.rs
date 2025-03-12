@@ -16,7 +16,7 @@ where
     VM: RoPE + ?Sized,
 {
     pub fn rope(&self, x: &mut Tensor<VM>, pos: &Tensor<VM>, sin: &Tensor<VM>, cos: &Tensor<VM>) {
-        self.vm.rope(self.stack(), x, pos, sin, cos)
+        self.vm().rope(self.stack(), x, pos, sin, cos)
     }
 }
 

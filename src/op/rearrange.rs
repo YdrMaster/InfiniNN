@@ -9,7 +9,7 @@ where
     VM: Rearrange + ?Sized,
 {
     pub fn rearrange(&self, y: &mut Tensor<VM>, x: &Tensor<VM>) {
-        self.vm.rearrange(self.stack(), y, x);
+        self.vm().rearrange(self.stack(), y, x);
     }
 }
 

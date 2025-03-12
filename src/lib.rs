@@ -7,7 +7,7 @@ use std::ops::Deref;
 pub mod nn;
 pub mod op;
 
-pub use context::{Context, Exec, Map, Mapping, ObjId};
+pub use context::{Context, Mapping, ObjId, VirtualMachineExt};
 pub use tensor::Tensor;
 
 #[allow(non_camel_case_types)]

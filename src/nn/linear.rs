@@ -1,6 +1,6 @@
-use super::{NuralNetwork, WeightBias};
+use super::{NuralNetwork, WeightBias, WeightBiasData};
 use crate::{
-    Context, Tensor, VirtualMachine,
+    Context, Mapping, Tensor, VirtualMachine,
     op::{MatMul, Rearrange},
 };
 use digit_layout::DigitLayout;
@@ -29,10 +29,15 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
+    type Data = WeightBiasData;
     type Obj = WeightBias;
     type Sub = ();
 
-    fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
+    fn init(data: Self::Data, mapping: Mapping<VM, Self>) {
+        data.map(mapping)
+    }
+
+    fn forward(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
         let &Self { dt_w, bias } = self;
         let Args { mut y, x } = args;
 
@@ -59,33 +64,45 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{Args, Linear, WeightBias};
-    use crate::{Exec, Map, VirtualMachine, test::TestVM};
+    use super::{Args, Linear};
+    use crate::{VirtualMachine, VirtualMachineExt, dev_id, nn::WeightBiasData, test::TestVM};
     use digit_layout::types as ty;
+
+    const DEVICE: dev_id = 0;
+    const D: usize = 1024;
+    const DI: usize = 1536;
+    const N: usize = 7;
 
     #[test]
     fn test() {
         let vm = TestVM::default();
         let pid = vm.register("linear");
-        let device = 0;
 
-        let w = vec![0u8; 1024 * 1536 * 2];
-        let b = vec![0u8; 1536 * 2];
-        let norm = vm.map::<Linear>(pid, device);
-        norm.map_host(WeightBias::Weight, Box::new(w));
-        norm.map_host(WeightBias::Bias, Box::new(b));
+        {
+            let w = vec![0u8; D * DI * 2];
+            let b = vec![0u8; DI * 2];
+            vm.init::<Linear>(
+                pid,
+                DEVICE,
+                WeightBiasData {
+                    weight: Box::new(w),
+                    bias: Some(Box::new(b)),
+                },
+            )
+            .forward(
+                pid,
+                DEVICE,
+                &Linear {
+                    dt_w: ty::F16,
+                    bias: true,
+                },
+                Args {
+                    y: vm.workspace(Some(DEVICE), ty::F16, &[N, DI]),
+                    x: vm.workspace(Some(DEVICE), ty::F16, &[N, D]),
+                },
+            );
+        }
 
-        let y = vm.workspace(Some(device), ty::F16, &[7, 1536]);
-        let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);
-
-        vm.exec(
-            pid,
-            device,
-            &Linear {
-                dt_w: ty::F16,
-                bias: true,
-            },
-            Args { y, x },
-        )
+        vm.unregister(pid)
     }
 }
