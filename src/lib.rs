@@ -59,16 +59,14 @@ pub trait Id: Copy + Eq + Send + Sync + 'static {
     }
 
     fn name(&self) -> &str;
-    fn idx(&self) -> Option<usize>;
+    fn idx(&self) -> Option<usize> {
+        None
+    }
 }
 
 impl Id for () {
     fn name(&self) -> &str {
         ""
-    }
-
-    fn idx(&self) -> Option<usize> {
-        None
     }
 }
 

@@ -8,7 +8,7 @@ use crate::{
         attention::{Attention, KVCache},
         linear_residual::{self, LinearResidual},
     },
-    op::{self, Add, RoPE},
+    op::{AttnMask, RoPE},
     split,
 };
 use digit_layout::DigitLayout;
@@ -19,7 +19,7 @@ pub struct SelfAttn {
     nh: usize,
     nkvh: usize,
     dh: usize,
-    mask: op::AttnMask,
+    mask: AttnMask,
     attn_qkv_bias: bool,
     attn_o_bias: bool,
 }
@@ -60,10 +60,6 @@ impl Id for Obj {
             Self::Cos => "cos",
         }
     }
-
-    fn idx(&self) -> Option<usize> {
-        None
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -90,8 +86,8 @@ impl Id for Sub {
     }
 }
 
-pub trait Ops: RoPE + attention::Ops + Add {}
-impl<VM> Ops for VM where VM: RoPE + attention::Ops + Add {}
+pub trait Ops: RoPE + attention::Ops + linear_residual::Ops {}
+impl<VM> Ops for VM where VM: RoPE + attention::Ops + linear_residual::Ops + ?Sized {}
 
 impl<VM> NuralNetwork<VM> for SelfAttn
 where

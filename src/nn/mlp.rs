@@ -47,14 +47,10 @@ impl Id for Sub {
             Self::DownLinear => "down",
         }
     }
-
-    fn idx(&self) -> Option<usize> {
-        None
-    }
 }
 
 pub trait Ops: linear_residual::Ops + SwiGLU + GeLU {}
-impl<VM> Ops for VM where VM: linear_residual::Ops + SwiGLU + GeLU {}
+impl<VM> Ops for VM where VM: linear_residual::Ops + SwiGLU + GeLU + ?Sized {}
 
 impl<VM> NuralNetwork<VM> for Mlp
 where

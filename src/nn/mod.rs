@@ -33,8 +33,4 @@ impl Id for WeightBias {
             Self::Bias => "bias",
         }
     }
-
-    fn idx(&self) -> Option<usize> {
-        None
-    }
 }

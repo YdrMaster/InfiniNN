@@ -25,7 +25,7 @@ where
 }
 
 pub trait Ops: LayerNorm + RmsNorm {}
-impl<VM> Ops for VM where VM: LayerNorm + RmsNorm {}
+impl<VM> Ops for VM where VM: LayerNorm + RmsNorm + ?Sized {}
 
 impl<VM> NuralNetwork<VM> for Normalization
 where
