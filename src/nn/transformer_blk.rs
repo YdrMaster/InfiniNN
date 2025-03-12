@@ -222,8 +222,11 @@ mod test {
     use super::{Args, Data, TransformerBlk};
     use crate::{
         VirtualMachine, VirtualMachineExt, dev_id,
-        nn::{WeightBiasData, mlp, self_attn},
-        test::TestVM,
+        nn::{
+            WeightBiasData, mlp,
+            self_attn::{self, Request},
+        },
+        test::{TestVM, test_data},
     };
     use digit_layout::{DigitLayout, types as ty};
 
@@ -249,32 +252,32 @@ mod test {
             DEVICE,
             Data {
                 pre_norm: WeightBiasData {
-                    weight: Box::new(vec![0u8; D * DT_NORM.nbytes()]),
+                    weight: test_data(DT_NORM, &[D]),
                     bias: None,
                 },
                 self_attn: self_attn::Data {
                     qkv: WeightBiasData {
-                        weight: Box::new(vec![0u8; (NH + NKVH + NKVH) * DH * D * 2]),
+                        weight: test_data(DT_W, &[(NH + NKVH + NKVH) * DH, D]),
                         bias: None,
                     },
-                    sin: Box::new(vec![0u8; MAX_CTX * DH / 2 * 2]),
-                    cos: Box::new(vec![0u8; MAX_CTX * DH / 2 * 2]),
+                    sin: test_data(DT_W, &[MAX_CTX, DH / 2]),
+                    cos: test_data(DT_W, &[MAX_CTX, DH / 2]),
                     output: WeightBiasData {
-                        weight: Box::new(vec![0u8; D * NH * DH * 2]),
+                        weight: test_data(DT_W, &[D, NH * DH]),
                         bias: None,
                     },
                 },
                 post_norm: WeightBiasData {
-                    weight: Box::new(vec![0u8; D * DT_NORM.nbytes()]),
+                    weight: test_data(DT_NORM, &[D]),
                     bias: None,
                 },
                 mlp: mlp::Data {
                     up: WeightBiasData {
-                        weight: Box::new(vec![0u8; D * DI * 2 * DT_W.nbytes()]),
+                        weight: test_data(DT_W, &[D * DI * 2]),
                         bias: None,
                     },
                     down: WeightBiasData {
-                        weight: Box::new(vec![0u8; DI * D * DT_W.nbytes()]),
+                        weight: test_data(DT_W, &[DI * D]),
                         bias: None,
                     },
                 },
@@ -290,19 +293,19 @@ mod test {
                 n_sin: MAX_CTX,
                 n_cos: MAX_CTX,
                 reqs: vec![
-                    self_attn::Request {
+                    Request {
                         k_cache: vm.workspace(Some(DEVICE), ty::F16, &[MAX_CTX, NKVH, DH]),
                         v_cache: vm.workspace(Some(DEVICE), ty::F16, &[MAX_CTX, NKVH, DH]),
                         n_seq: 7,
                         pos: 20,
                     },
-                    self_attn::Request {
+                    Request {
                         k_cache: vm.workspace(Some(DEVICE), ty::F16, &[MAX_CTX, NKVH, DH]),
                         v_cache: vm.workspace(Some(DEVICE), ty::F16, &[MAX_CTX, NKVH, DH]),
                         n_seq: 1,
                         pos: 30,
                     },
-                    self_attn::Request {
+                    Request {
                         k_cache: vm.workspace(Some(DEVICE), ty::F16, &[MAX_CTX, NKVH, DH]),
                         v_cache: vm.workspace(Some(DEVICE), ty::F16, &[MAX_CTX, NKVH, DH]),
                         n_seq: 3,

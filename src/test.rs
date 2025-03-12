@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::{Id, ObjId, VirtualMachine, pid};
+use digit_layout::DigitLayout;
 use patricia_tree::PatriciaMap;
 use std::{cell::RefCell, collections::HashMap, ops::Deref};
 
@@ -181,4 +182,9 @@ impl TestVM {
         internal.bcbs.insert(id, bcb);
         Blob { id, n_bytes: size }
     }
+}
+
+pub(crate) fn test_data(dt: DigitLayout, shape: &[usize]) -> Box<dyn Deref<Target = [u8]>> {
+    let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
+    Box::new(vec![0u8; size])
 }

@@ -219,6 +219,6 @@ impl fmt::Display for Domain {
             dev_id::MAX => write!(f, "H")?,
             n => write!(f, "{n}")?,
         }
-        write!(f, "].")
+        write!(f, "]Ω")
     }
 }
