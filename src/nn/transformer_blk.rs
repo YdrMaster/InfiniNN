@@ -1,15 +1,97 @@
 use super::{
     NuralNetwork,
-    mlp::{self, Mlp},
+    mlp::{self, Activation, Mlp},
     normalization::{self as norm, Normalization},
     self_attn::{self, Request, SelfAttn},
 };
-use crate::{Context, Id, Tensor, VirtualMachine};
+use crate::{Context, Id, Tensor, VirtualMachine, op::AttnMask};
+use digit_layout::DigitLayout;
 
 pub struct TransformerBlk {
     pub norm: Normalization,
     pub self_attn: SelfAttn,
     pub mlp: Mlp,
+}
+
+impl TransformerBlk {
+    pub fn llama(
+        dt_norm: DigitLayout,
+        dt_w: DigitLayout,
+        nh: usize,
+        nkvh: usize,
+        dh: usize,
+        di: usize,
+        epsilon: f32,
+    ) -> Self {
+        Self {
+            norm: Normalization {
+                ty: norm::Type::RmsNorm { epsilon },
+                dt_w: dt_norm,
+            },
+            self_attn: SelfAttn {
+                dt_w,
+                nh,
+                nkvh,
+                dh,
+                mask: AttnMask::Causal,
+                qkv_bias: false,
+                o_bias: false,
+            },
+            mlp: Mlp {
+                act: Activation::SwiGLU,
+                dt_w,
+                di,
+                up_bias: false,
+                down_bias: false,
+            },
+        }
+    }
+
+    pub fn qwen2(
+        dt_norm: DigitLayout,
+        dt_w: DigitLayout,
+        nh: usize,
+        nkvh: usize,
+        dh: usize,
+        di: usize,
+        epsilon: f32,
+    ) -> Self {
+        let mut llama = Self::llama(dt_norm, dt_w, nh, nkvh, dh, di, epsilon);
+        llama.self_attn.qkv_bias = true;
+        llama
+    }
+
+    pub fn gpt2(
+        dt_norm: DigitLayout,
+        dt_w: DigitLayout,
+        nh: usize,
+        nkvh: usize,
+        dh: usize,
+        di: usize,
+    ) -> Self {
+        Self {
+            norm: Normalization {
+                ty: norm::Type::LayerNorm,
+                dt_w: dt_norm,
+            },
+            self_attn: SelfAttn {
+                dt_w,
+                nh,
+                nkvh,
+                dh,
+                mask: AttnMask::Causal,
+                qkv_bias: true,
+                o_bias: true,
+            },
+            mlp: Mlp {
+                act: Activation::GeLU,
+                dt_w,
+                di,
+                up_bias: true,
+                down_bias: true,
+            },
+        }
+    }
 }
 
 pub struct Args<'vm, VM>
