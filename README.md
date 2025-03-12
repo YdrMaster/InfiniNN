@@ -14,6 +14,10 @@
 
 通过下列示例了解详情：
 
-- [Normalization](/src/nn/normalization.rs);
-- [Attention](/src/nn/attention.rs);
-- [Mlp](/src/nn/mlp.rs);
+- [normalization](/src/nn/normalization.rs)
+- [Linear](/src/nn/linear.rs)
+- [linear-residual](/src/nn/linear_residual.rs)
+- [attention](/src/nn/attention.rs)
+- [self-attention](/src/nn/self_attn.rs)
+- [mlp](/src/nn/mlp.rs)
+- [transformer-block](/src/nn/transformer_blk.rs)
