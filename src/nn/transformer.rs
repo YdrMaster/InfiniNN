@@ -118,6 +118,151 @@ where
 
 #[cfg(test)]
 mod test {
+    use super::{Args, Sub, TransformerBlk};
+    use crate::{
+        Exec, Map, VirtualMachine,
+        nn::{
+            WeightBias,
+            linear::Linear,
+            linear_residual::LinearResidual,
+            mlp::{self, Activation, Mlp},
+            normalization::{Normalization, Type as NormType},
+            self_attn::{self, Obj, SelfAttn},
+        },
+        op::AttnMask,
+        test::TestVM,
+    };
+    use digit_layout::{DigitLayout, types as ty};
+
     #[test]
-    fn test() {}
+    fn test() {
+        const DT_W: DigitLayout = ty::F16;
+        const DT_NORM: DigitLayout = ty::F32;
+        const NH: usize = 64;
+        const NKVH: usize = 8;
+        const DH: usize = 128;
+        const N: usize = 11;
+        const D: usize = 2048;
+        const MAX_CTX: usize = 4096;
+        const DI: usize = 11008;
+
+        const NORM: NormType = NormType::RmsNorm { epsilon: 1e-5 };
+        const ATTN_QKV_BIAS: bool = false;
+        const ATTN_O_BIAS: bool = false;
+        const MASK: AttnMask = AttnMask::None;
+        const ACT: Activation = Activation::GeLU;
+
+        const MLP_UP_BIAS: bool = false;
+        const MLP_DOWN_BIAS: bool = false;
+
+        let vm = TestVM::default();
+        let pid = vm.register("transformer");
+        let device = 0;
+        // 参数加载
+        let transformer = vm.map::<TransformerBlk>(pid, device);
+
+        // 1. 预归一化
+        let pre_norm = transformer.step_into::<Normalization>(Sub::PreNorm);
+
+        //dt = F32
+        let w = vec![0u8; D * DT_NORM.nbytes()];
+        pre_norm.map_host(WeightBias::Weight, Box::new(w));
+
+        // 2. 自注意力
+        let self_attn = transformer.step_into::<SelfAttn>(Sub::SelfAttn);
+
+        let sin = vec![0u8; MAX_CTX * DH / 2 * 2];
+        let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
+        let attn_qkv_w = vec![0u8; (NH + NKVH + NKVH) * DH * D * 2];
+        let attn_o_w = vec![0u8; D * NH * DH * 2];
+
+        self_attn.map_host(Obj::Sin, Box::new(sin));
+        self_attn.map_host(Obj::Cos, Box::new(cos));
+
+        let qkv = self_attn.step_into::<Linear>(self_attn::Sub::QkvLinear);
+        qkv.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
+
+        let output = self_attn.step_into::<LinearResidual>(self_attn::Sub::OutputLinear);
+        output.map_host(WeightBias::Weight, Box::new(attn_o_w));
+
+        // 3. 后归一化
+        let post_norm = transformer.step_into::<Normalization>(Sub::PostNorm);
+
+        //dt = F32
+        let w = vec![0u8; D * DT_NORM.nbytes()];
+        post_norm.map_host(WeightBias::Weight, Box::new(w));
+
+        // 4. MLP处理
+        let mlp = transformer.step_into::<Mlp>(Sub::Mlp);
+        // wup: D x DI, 每个元素 2 字节(F16)
+        // 对于 GeLU 激活函数，上投影维度就是 DI
+        let wup = vec![0u8; D * DI * DT_W.nbytes()];
+        // wdown: DI x D, 每个元素 2 字节(F16)
+        let wdown = vec![0u8; DI * D * DT_W.nbytes()];
+
+        mlp.step_into::<Linear>(mlp::Sub::UpLinear)
+            .map_host(WeightBias::Weight, Box::new(wup));
+        mlp.step_into::<Linear>(mlp::Sub::DownLinear)
+            .map_host(WeightBias::Weight, Box::new(wdown));
+
+        // 创建输入输出张量
+        let embd = vm.workspace(Some(device), DT_W, &[N, D]);
+        let pos = vm.workspace(Some(device), ty::U32, &[N]);
+
+        // 执行 transformer
+        vm.exec(
+            pid,
+            device,
+            &TransformerBlk {
+                norm: Normalization {
+                    ty: NORM,
+                    dt_w: DT_NORM,
+                },
+                self_attn: SelfAttn {
+                    dt_w: DT_W,
+                    nh: NH,
+                    nkvh: NKVH,
+                    dh: DH,
+                    mask: MASK,
+                    qkv_bias: ATTN_QKV_BIAS,
+                    o_bias: ATTN_O_BIAS,
+                },
+                mlp: Mlp {
+                    act: ACT,
+                    dt_w: DT_W,
+                    di: DI,
+                    up_bias: MLP_UP_BIAS,
+                    down_bias: MLP_DOWN_BIAS,
+                },
+            },
+            Args {
+                embd,
+                pos,
+                n_sin: MAX_CTX,
+                n_cos: MAX_CTX,
+                reqs: vec![
+                    self_attn::Request {
+                        k_cache: vm.workspace(Some(device), ty::F16, &[MAX_CTX, NKVH, DH]),
+                        v_cache: vm.workspace(Some(device), ty::F16, &[MAX_CTX, NKVH, DH]),
+                        n_seq: 7,
+                        pos: 20,
+                    },
+                    self_attn::Request {
+                        k_cache: vm.workspace(Some(device), ty::F16, &[MAX_CTX, NKVH, DH]),
+                        v_cache: vm.workspace(Some(device), ty::F16, &[MAX_CTX, NKVH, DH]),
+                        n_seq: 1,
+                        pos: 30,
+                    },
+                    self_attn::Request {
+                        k_cache: vm.workspace(Some(device), ty::F16, &[MAX_CTX, NKVH, DH]),
+                        v_cache: vm.workspace(Some(device), ty::F16, &[MAX_CTX, NKVH, DH]),
+                        n_seq: 3,
+                        pos: 40,
+                    },
+                ],
+            },
+        );
+
+        vm.unregister(pid);
+    }
 }
