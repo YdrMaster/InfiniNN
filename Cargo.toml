@@ -1,6 +1,6 @@
 [package]
 name = "infini-nn"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
