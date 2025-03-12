@@ -3,7 +3,7 @@ use digit_layout::DigitLayout;
 use std::{fmt, marker::PhantomData, ops::Deref};
 
 pub struct Context<'vm, VM: ?Sized, NN> {
-    stack: &'vm mut Vec<u8>,
+    stack: &'vm mut String,
     pub(crate) vm: &'vm VM,
     _nn: PhantomData<NN>,
 }
@@ -24,7 +24,7 @@ where
     NN: NuralNetwork<VM>,
 {
     pub fn trap<Sub: NuralNetwork<VM>>(&mut self, id: NN::Sub, sub: &Sub, args: Sub::Args<'_>) {
-        push(self.stack, id);
+        let len = push(self.stack, id);
 
         sub.launch(
             args,
@@ -35,7 +35,7 @@ where
             },
         );
 
-        pop::<NN::Sub>(self.stack)
+        pop(self.stack, len)
     }
 
     pub fn workspace(&self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
@@ -52,8 +52,8 @@ where
 
 pub trait Exec: VirtualMachine {
     /// 在指定设备上执行一个网络。
-    fn exec<NN: NuralNetwork<Self>>(&self, pid: u64, device: dev_id, nn: &NN, args: NN::Args<'_>) {
-        let mut stack = StackHeader { pid, device }.as_slice().to_vec();
+    fn exec<NN: NuralNetwork<Self>>(&self, pid: u64, dev_id: dev_id, nn: &NN, args: NN::Args<'_>) {
+        let mut stack = Domain { pid, dev_id }.to_string();
 
         nn.launch(
             args,
@@ -71,11 +71,12 @@ pub trait Exec: VirtualMachine {
         dt: DigitLayout,
         shape: &[usize],
     ) -> Tensor<'vm, Self> {
-        let header = StackHeader {
+        let header = Domain {
             pid: pid::MAX,
-            device: device.unwrap_or(dev_id::MAX),
-        };
-        let obj = stack(header.as_slice());
+            dev_id: device.unwrap_or(dev_id::MAX),
+        }
+        .to_string();
+        let obj = stack(&header);
         let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
         let blob = self.alloc(obj, size);
         Tensor::new(dt, shape, blob, self)
@@ -86,11 +87,9 @@ impl<VM: VirtualMachine> Exec for VM {}
 
 pub trait Map: VirtualMachine {
     /// 在指定设备上启动一个上下文。
-    fn map<NN: NuralNetwork<Self>>(&self, pid: u64, device: dev_id) -> Mapping<Self, NN> {
-        let mut stack = pid.as_slice().to_vec();
-        stack.extend_from_slice(device.as_slice());
+    fn map<NN: NuralNetwork<Self>>(&self, pid: pid, dev_id: dev_id) -> Mapping<Self, NN> {
         Mapping {
-            stack,
+            stack: Domain { pid, dev_id }.to_string(),
             _nn: PhantomData,
             vm: self,
         }
@@ -100,7 +99,7 @@ pub trait Map: VirtualMachine {
 impl<VM: VirtualMachine> Map for VM {}
 
 pub struct Mapping<'vm, VM: ?Sized, NN> {
-    stack: Vec<u8>,
+    stack: String,
     _nn: PhantomData<NN>,
     vm: &'vm VM,
 }
@@ -127,94 +126,76 @@ where
 }
 
 #[derive(Clone)]
-pub struct ObjId(Box<[u8]>);
+pub struct ObjId {
+    text: String,
+    _is_obj: bool,
+}
 
 impl ObjId {
-    pub fn as_slice(&self) -> &[u8] {
-        &self.0
+    pub fn as_str(&self) -> &str {
+        &self.text
     }
 
-    pub fn is_free(&self) -> bool {
-        self.0[self.0.len() - 1] == 0
+    pub fn domain(&self) -> &str {
+        let idx = self.text.find(']').unwrap() + 1;
+        &self.text[..idx]
     }
 
-    pub fn domain(&self) -> String {
-        unsafe { self.0.as_ptr().cast::<StackHeader>().read_unaligned() }.to_string()
-    }
-
-    pub fn body(&self) -> String {
-        StackBody(&self.0[size_of::<StackHeader>()..]).to_string()
+    pub fn body(&self) -> &str {
+        let idx = self.text.find(']').unwrap() + 1;
+        &self.text[idx..]
     }
 }
 
-fn push(vec: &mut Vec<u8>, id: impl Id) {
-    let slice = id.as_slice();
-    vec.push(slice.len() as _);
-    vec.extend_from_slice(slice);
+fn push(vec: &mut String, id: impl Id) -> usize {
+    let len = vec.len();
+    vec.push('.');
+    vec.push_str(id.name());
+    if let Some(idx) = id.idx() {
+        vec.push('#');
+        vec.push_str(&idx.to_string())
+    }
+    len
 }
 
-fn pop<T: Id>(vec: &mut Vec<u8>) {
-    vec.truncate(vec.len() - size_of::<T>() - 1)
+fn pop(vec: &mut String, len: usize) {
+    vec.truncate(len)
 }
 
-fn stack(stack: &[u8]) -> ObjId {
-    let mut stack = stack.to_vec();
-    stack.push(0);
-    ObjId(stack.into())
+fn obj_id(stack: &str, id: impl Id) -> ObjId {
+    let mut text = stack.to_string();
+    push(&mut text, id);
+    ObjId {
+        text,
+        _is_obj: true,
+    }
 }
 
-fn obj_id(stack: &[u8], which: impl Id) -> ObjId {
-    let mut stack = stack.to_vec();
-    push(&mut stack, which);
-    stack.push(1);
-    ObjId(stack.into())
+fn stack(stack: &str) -> ObjId {
+    ObjId {
+        text: stack.to_string(),
+        _is_obj: false,
+    }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct StackHeader {
+struct Domain {
     pid: pid,
-    device: dev_id,
+    dev_id: dev_id,
 }
 
-impl fmt::Display for StackHeader {
+impl fmt::Display for Domain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let &Self { pid, device } = self;
-        if pid == pid::MAX {
-            write!(f, "vm:")?
-        } else {
-            write!(f, "#{pid}:")?
+        let &Self { pid, dev_id } = self;
+        write!(f, "[")?;
+        match pid {
+            pid::MAX => write!(f, "vm")?,
+            n => write!(f, "#{n:x}")?,
         }
-        if device == dev_id::MAX {
-            write!(f, "H")
-        } else {
-            write!(f, "{device}")
+        write!(f, ":")?;
+        match dev_id {
+            dev_id::MAX => write!(f, "H")?,
+            n => write!(f, "{n}")?,
         }
-    }
-}
-
-struct StackBody<'a>(&'a [u8]);
-
-impl fmt::Display for StackBody<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut slice = self.0;
-        let stack = slice[slice.len() - 1] == 0;
-        slice = &slice[..slice.len() - 1];
-        while let &[len, ref tail @ ..] = slice {
-            write!(f, ".")?;
-            if len == 0 {
-                write!(f, "()")?;
-                slice = tail
-            } else {
-                let (it, tail) = tail.split_at(len as _);
-                for &byte in it {
-                    write!(f, "{byte:02x}")?
-                }
-                slice = tail
-            }
-        }
-        if stack {
-            write!(f, ".*")?
-        }
-        Ok(())
+        write!(f, "].")
     }
 }

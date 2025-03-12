@@ -1,4 +1,4 @@
-use super::NuralNetwork;
+use super::{NuralNetwork, WeightBias};
 use crate::{
     Context, Tensor, VirtualMachine,
     op::{LayerNorm, RmsNorm},
@@ -24,12 +24,6 @@ where
     x: Tensor<'vm, VM>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Obj {
-    Scale,
-    Bias,
-}
-
 pub trait Ops: LayerNorm + RmsNorm {}
 impl<VM> Ops for VM where VM: LayerNorm + RmsNorm {}
 
@@ -41,7 +35,7 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
-    type Obj = Obj;
+    type Obj = WeightBias;
     type Sub = ();
 
     fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
@@ -54,12 +48,12 @@ where
 
         match ty {
             Type::RmsNorm { epsilon } => {
-                let w = ctx.get_mapped(Obj::Scale, dt_w, &[d]);
+                let w = ctx.get_mapped(WeightBias::Weight, dt_w, &[d]);
                 ctx.rms_norm(&mut y, &x, &w, epsilon)
             }
             Type::LayerNorm => {
-                let w = ctx.get_mapped(Obj::Scale, dt_w, &[d]);
-                let b = ctx.get_mapped(Obj::Bias, dt_w, &[d]);
+                let w = ctx.get_mapped(WeightBias::Weight, dt_w, &[d]);
+                let b = ctx.get_mapped(WeightBias::Bias, dt_w, &[d]);
                 ctx.layer_norm(&mut y, &x, &w, &b)
             }
         }
@@ -68,7 +62,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{Args, Normalization, Obj, Type};
+    use super::{Args, Normalization, Type, WeightBias};
     use crate::{Exec, Map, VirtualMachine, test::TestVM};
     use digit_layout::types as ty;
 
@@ -80,7 +74,7 @@ mod test {
 
         let w = vec![0u8; 1024 * 4];
         let norm = vm.map::<Normalization>(pid, device);
-        norm.map_host(Obj::Scale, Box::new(w));
+        norm.map_host(WeightBias::Weight, Box::new(w));
 
         let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
         let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);

@@ -58,12 +58,19 @@ pub trait Id: Copy + Eq + Send + Sync + 'static {
         unsafe { slice.as_ptr().cast::<Self>().read_unaligned() }
     }
 
-    fn as_slice(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts((&raw const *self).cast(), size_of_val(self)) }
-    }
+    fn name(&self) -> &str;
+    fn idx(&self) -> Option<usize>;
 }
 
-impl<T: Copy + Eq + Send + Sync + 'static> Id for T {}
+impl Id for () {
+    fn name(&self) -> &str {
+        ""
+    }
+
+    fn idx(&self) -> Option<usize> {
+        None
+    }
+}
 
 pub trait Blob {
     fn eq(l: &Self, r: &Self) -> bool;

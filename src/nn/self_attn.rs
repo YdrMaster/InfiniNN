@@ -3,7 +3,7 @@ use super::{
     linear::{self, Linear},
 };
 use crate::{
-    Context, Tensor, VirtualMachine,
+    Context, Id, Tensor, VirtualMachine,
     nn::attention::{Attention, KVCache},
     op::{self, Add, RoPE},
     split,
@@ -52,10 +52,41 @@ pub enum Obj {
     AttnOBias,
 }
 
+impl Id for Obj {
+    fn name(&self) -> &str {
+        match self {
+            Self::Sin => "sin",
+            Self::Cos => "cos",
+            Self::AttnOWeight => "o.weight",
+            Self::AttnOBias => "o.bias",
+        }
+    }
+
+    fn idx(&self) -> Option<usize> {
+        None
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Sub {
     AttnQkvLinear,
     Attn(usize),
+}
+
+impl Id for Sub {
+    fn name(&self) -> &str {
+        match self {
+            Self::AttnQkvLinear => "qkv",
+            Self::Attn(_) => "attn",
+        }
+    }
+
+    fn idx(&self) -> Option<usize> {
+        match self {
+            Self::AttnQkvLinear => None,
+            &Self::Attn(i) => Some(i),
+        }
+    }
 }
 
 pub trait Ops: RoPE + attention::Ops + Add {}
@@ -179,7 +210,12 @@ where
 #[cfg(test)]
 mod test {
     use super::{Args, Obj, Request, SelfAttn, Sub};
-    use crate::{Exec, Map, VirtualMachine, dev_id, nn::linear, op::AttnMask, test::TestVM};
+    use crate::{
+        Exec, Map, VirtualMachine, dev_id,
+        nn::{WeightBias, linear},
+        op::AttnMask,
+        test::TestVM,
+    };
     use digit_layout::{DigitLayout, types as ty};
 
     const ARCH: &str = "self-attn";
@@ -237,8 +273,8 @@ mod test {
             let attn_o_b = vec![0u8; D * 2];
             let self_attn = vm.map::<SelfAttn>(pid, DEVICE);
             let linear = self_attn.step_into::<linear::Linear>(Sub::AttnQkvLinear);
-            linear.map_host(linear::Obj::Weight, Box::new(attn_qkv_w));
-            linear.map_host(linear::Obj::Bias, Box::new(attn_qkv_b));
+            linear.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
+            linear.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
             self_attn.map_host(Obj::AttnOWeight, Box::new(attn_o_w));
             self_attn.map_host(Obj::AttnOBias, Box::new(attn_o_b));
             self_attn.map_host(Obj::Sin, Box::new(sin));
@@ -276,8 +312,8 @@ mod test {
             let attn_o_w = vec![0u8; D * NH * DH * 2];
             let self_attn = vm.map::<SelfAttn>(pid, DEVICE);
             let linear = self_attn.step_into::<linear::Linear>(Sub::AttnQkvLinear);
-            linear.map_host(linear::Obj::Weight, Box::new(attn_qkv_w));
-            linear.map_host(linear::Obj::Bias, Box::new(attn_qkv_b));
+            linear.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
+            linear.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
             self_attn.map_host(Obj::AttnOWeight, Box::new(attn_o_w));
             self_attn.map_host(Obj::Sin, Box::new(sin));
             self_attn.map_host(Obj::Cos, Box::new(cos));

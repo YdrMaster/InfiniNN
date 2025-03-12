@@ -18,3 +18,22 @@ where
 
     fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>);
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WeightBias {
+    Weight,
+    Bias,
+}
+
+impl Id for WeightBias {
+    fn name(&self) -> &str {
+        match self {
+            Self::Weight => "weight",
+            Self::Bias => "bias",
+        }
+    }
+
+    fn idx(&self) -> Option<usize> {
+        None
+    }
+}

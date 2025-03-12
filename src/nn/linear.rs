@@ -1,4 +1,4 @@
-use super::NuralNetwork;
+use super::{NuralNetwork, WeightBias};
 use crate::{
     Context, Tensor, VirtualMachine,
     op::{MatMul, Rearrange},
@@ -18,12 +18,6 @@ where
     pub x: Tensor<'vm, VM>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Obj {
-    Weight,
-    Bias,
-}
-
 pub trait Ops: Rearrange + MatMul {}
 impl<VM> Ops for VM where VM: Rearrange + MatMul + ?Sized {}
 
@@ -35,7 +29,7 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
-    type Obj = Obj;
+    type Obj = WeightBias;
     type Sub = ();
 
     fn launch(&self, args: Self::Args<'_>, ctx: Context<VM, Self>) {
@@ -48,14 +42,16 @@ where
         assert_eq!(n, n_);
 
         let beta = if bias {
-            let b = ctx.get_mapped(Obj::Bias, dt_w, &[1, d_]).broadcast(0, n);
+            let b = ctx
+                .get_mapped(WeightBias::Bias, dt_w, &[1, d_])
+                .broadcast(0, n);
             ctx.rearrange(&mut y, &b);
             1.
         } else {
             0.
         };
         let w = ctx
-            .get_mapped(Obj::Weight, dt_w, &[d_, d])
+            .get_mapped(WeightBias::Weight, dt_w, &[d_, d])
             .transpose(&[1, 0]);
         ctx.mat_mul(&mut y, beta, &x, &w, 1.)
     }
@@ -63,7 +59,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{Args, Linear, Obj};
+    use super::{Args, Linear, WeightBias};
     use crate::{Exec, Map, VirtualMachine, test::TestVM};
     use digit_layout::types as ty;
 
@@ -76,8 +72,8 @@ mod test {
         let w = vec![0u8; 1024 * 1536 * 2];
         let b = vec![0u8; 1536 * 2];
         let norm = vm.map::<Linear>(pid, device);
-        norm.map_host(Obj::Weight, Box::new(w));
-        norm.map_host(Obj::Bias, Box::new(b));
+        norm.map_host(WeightBias::Weight, Box::new(w));
+        norm.map_host(WeightBias::Bias, Box::new(b));
 
         let y = vm.workspace(Some(device), ty::F16, &[7, 1536]);
         let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);

@@ -1,4 +1,4 @@
-use super::NuralNetwork;
+use super::{NuralNetwork, WeightBias};
 use crate::{
     Context, Tensor, VirtualMachine,
     nn::linear::{self, Linear},
@@ -31,12 +31,6 @@ where
     residual: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Obj {
-    Wdown,
-    Bdown,
-}
-
 pub trait Ops: Rearrange + MatMul + SwiGLU + GeLU + Add {}
 impl<VM> Ops for VM where VM: Rearrange + MatMul + SwiGLU + GeLU + Add {}
 
@@ -48,7 +42,7 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
-    type Obj = Obj;
+    type Obj = WeightBias;
     type Sub = ();
 
     fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
@@ -98,13 +92,15 @@ where
         }
 
         let w = ctx
-            .get_mapped(Obj::Wdown, dt_w, &[d, di])
+            .get_mapped(WeightBias::Weight, dt_w, &[d, di])
             .transpose(&[1, 0]);
         if down_bias {
             {
                 let x1 = if residual { &mut x } else { &mut y };
                 {
-                    let down_bias = ctx.get_mapped(Obj::Bdown, dt_w, &[1, d]).broadcast(0, n);
+                    let down_bias = ctx
+                        .get_mapped(WeightBias::Bias, dt_w, &[1, d])
+                        .broadcast(0, n);
                     ctx.rearrange(x1, &down_bias)
                 }
                 ctx.mat_mul(x1, scale, &mid, &w, scale)
@@ -121,12 +117,8 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{Activation, Args, Mlp, Obj};
-    use crate::{
-        Exec, Map, VirtualMachine,
-        nn::linear::{self, Linear},
-        test::TestVM,
-    };
+    use super::{Activation, Args, Mlp, WeightBias};
+    use crate::{Exec, Map, VirtualMachine, nn::linear::Linear, test::TestVM};
     use digit_layout::types as ty;
 
     #[test]
@@ -140,8 +132,8 @@ mod test {
             let wdown = vec![0u8; 1024 * 1536 * 2];
             let mlp = vm.map::<Mlp>(pid, device);
             let linear = mlp.step_into::<Linear>(());
-            linear.map_host(linear::Obj::Weight, Box::new(wup));
-            mlp.map_host(Obj::Wdown, Box::new(wdown));
+            linear.map_host(WeightBias::Weight, Box::new(wup));
+            mlp.map_host(WeightBias::Weight, Box::new(wdown));
 
             let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
             let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);

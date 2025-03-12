@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::{ObjId, VirtualMachine, pid};
+use crate::{Id, ObjId, VirtualMachine, pid};
 use patricia_tree::PatriciaMap;
 use std::{cell::RefCell, collections::HashMap, ops::Deref};
 
@@ -31,6 +31,16 @@ impl crate::Blob for Blob {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) struct CommGroup(usize);
+
+impl Id for CommGroup {
+    fn name(&self) -> &str {
+        "test-comm"
+    }
+
+    fn idx(&self) -> Option<usize> {
+        Some(self.0)
+    }
+}
 
 impl crate::CommGroup for CommGroup {
     fn n_members(&self) -> usize {
@@ -94,9 +104,9 @@ impl VirtualMachine for TestVM {
     fn get_mapped(&self, obj: ObjId) -> Self::Blob {
         let mut internal = self.0.borrow_mut();
 
-        let id = *internal.maps.get_mut(obj.as_slice()).unwrap();
+        let id = *internal.maps.get_mut(obj.as_str()).unwrap();
 
-        println!("[{}] load %{id} @ {}", obj.domain(), obj.body());
+        println!("{} load %{id} @ {}", obj.domain(), obj.body());
 
         let bcb = internal.bcbs.get_mut(&id).unwrap();
         match &mut bcb._ty {
@@ -123,13 +133,13 @@ impl VirtualMachine for TestVM {
         let bcb = internal.bcbs.get_mut(&blob.id).unwrap();
         match &mut bcb._ty {
             Placement::Host | Placement::Device => {
-                println!("[{}] free %{}", bcb.obj.domain(), bcb.id);
+                println!("{} free %{}", bcb.obj.domain(), bcb.id);
                 internal.bcbs.remove(&blob.id);
             }
             Placement::Mapped { rc, .. } => {
                 *rc -= 1;
                 if *rc == 0 {
-                    println!("[{}] free %{}", bcb.obj.domain(), bcb.id)
+                    println!("{} free %{}", bcb.obj.domain(), bcb.id)
                 }
             }
         }
@@ -142,7 +152,7 @@ impl VirtualMachine for TestVM {
 
 impl TestVM {
     pub(crate) fn launch(&self, obj: ObjId, info: String) {
-        println!("[{}] {info} @ {}", obj.domain(), obj.body())
+        println!("{} {info} @ {}", obj.domain(), obj.body())
     }
 
     fn alloc_(&self, obj: ObjId, size: usize, placement: Placement) -> Blob {
@@ -154,11 +164,11 @@ impl TestVM {
         let domain = obj.domain();
         let body = obj.body();
         match &placement {
-            Placement::Host => println!("[{domain}] alloc %{id} {size} bytes @ {body}"),
-            Placement::Device => println!("[{domain}] alloc %{id} {size} bytes @ {body}"),
+            Placement::Host => println!("{domain} alloc %{id} {size} bytes @ {body}"),
+            Placement::Device => println!("{domain} alloc %{id} {size} bytes @ {body}"),
             Placement::Mapped { .. } => {
-                println!("[{domain}] map %{id} {size} bytes @ {body}");
-                assert!(internal.maps.insert(obj.as_slice(), id).is_none());
+                println!("{domain} map %{id} {size} bytes @ {body}");
+                assert!(internal.maps.insert(obj.as_str(), id).is_none());
             }
         }
 
