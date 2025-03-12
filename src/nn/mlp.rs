@@ -1,8 +1,11 @@
-use super::{NuralNetwork, WeightBias};
+use super::{NuralNetwork, linear_residual};
 use crate::{
-    Context, Tensor, VirtualMachine,
-    nn::linear::{self, Linear},
-    op::{Add, GeLU, MatMul, Rearrange, SwiGLU},
+    Context, Id, Tensor, VirtualMachine,
+    nn::{
+        linear::{self, Linear},
+        linear_residual::LinearResidual,
+    },
+    op::{GeLU, SwiGLU},
     split,
 };
 use digit_layout::DigitLayout;
@@ -31,8 +34,27 @@ where
     residual: bool,
 }
 
-pub trait Ops: Rearrange + MatMul + SwiGLU + GeLU + Add {}
-impl<VM> Ops for VM where VM: Rearrange + MatMul + SwiGLU + GeLU + Add {}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Sub {
+    UpLinear,
+    DownLinear,
+}
+
+impl Id for Sub {
+    fn name(&self) -> &str {
+        match self {
+            Self::UpLinear => "up",
+            Self::DownLinear => "down",
+        }
+    }
+
+    fn idx(&self) -> Option<usize> {
+        None
+    }
+}
+
+pub trait Ops: linear_residual::Ops + SwiGLU + GeLU {}
+impl<VM> Ops for VM where VM: linear_residual::Ops + SwiGLU + GeLU {}
 
 impl<VM> NuralNetwork<VM> for Mlp
 where
@@ -42,8 +64,8 @@ where
         = Args<'vm, VM>
     where
         VM: 'vm;
-    type Obj = WeightBias;
-    type Sub = ();
+    type Obj = ();
+    type Sub = Sub;
 
     fn launch(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
         let &Self {
@@ -54,15 +76,15 @@ where
             down_bias,
         } = self;
         let Args {
-            mut y,
-            mut x,
+            y,
+            x,
             scale,
             residual,
         } = args;
 
         let dt_a = Tensor::check_dt_same(&[&y, &x]).unwrap();
         assert_eq!(y.shape(), x.shape());
-        let &[n, d] = y.shape() else { panic!() };
+        let &[n, _] = y.shape() else { panic!() };
 
         let d_up = match ty {
             Activation::SwiGLU => di * 2,
@@ -71,7 +93,7 @@ where
         let mut mid = ctx.workspace(dt_a, &[n, d_up]);
 
         ctx.trap(
-            (),
+            Sub::UpLinear,
             &Linear {
                 dt_w,
                 bias: up_bias,
@@ -91,34 +113,27 @@ where
             Activation::GeLU => ctx.gelu(&mut mid),
         }
 
-        let w = ctx
-            .get_mapped(WeightBias::Weight, dt_w, &[d, di])
-            .transpose(&[1, 0]);
-        if down_bias {
-            {
-                let x1 = if residual { &mut x } else { &mut y };
-                {
-                    let down_bias = ctx
-                        .get_mapped(WeightBias::Bias, dt_w, &[1, d])
-                        .broadcast(0, n);
-                    ctx.rearrange(x1, &down_bias)
-                }
-                ctx.mat_mul(x1, scale, &mid, &w, scale)
-            }
-            if residual {
-                ctx.add(&mut y, &x)
-            }
-        } else {
-            let beta = if residual { 1. } else { 0. };
-            ctx.mat_mul(&mut y, beta, &mid, &w, scale)
-        }
+        ctx.trap(
+            Sub::DownLinear,
+            &LinearResidual {
+                dt_w,
+                bias: down_bias,
+                scale,
+                residual,
+            },
+            linear_residual::Args { y, x: mid, y_: x },
+        )
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::{Activation, Args, Mlp, WeightBias};
-    use crate::{Exec, Map, VirtualMachine, nn::linear::Linear, test::TestVM};
+    use super::{Activation, Args, Mlp, Sub};
+    use crate::{
+        Exec, Map, VirtualMachine,
+        nn::{WeightBias, linear::Linear},
+        test::TestVM,
+    };
     use digit_layout::types as ty;
 
     #[test]
@@ -131,9 +146,10 @@ mod test {
             let wup = vec![0u8; 1024 * 1536 * 2 * 2];
             let wdown = vec![0u8; 1024 * 1536 * 2];
             let mlp = vm.map::<Mlp>(pid, device);
-            let linear = mlp.step_into::<Linear>(());
-            linear.map_host(WeightBias::Weight, Box::new(wup));
-            mlp.map_host(WeightBias::Weight, Box::new(wdown));
+            mlp.step_into::<Linear>(Sub::UpLinear)
+                .map_host(WeightBias::Weight, Box::new(wup));
+            mlp.step_into::<Linear>(Sub::DownLinear)
+                .map_host(WeightBias::Weight, Box::new(wdown));
 
             let y = vm.workspace(Some(device), ty::F16, &[7, 1024]);
             let x = vm.workspace(Some(device), ty::F16, &[7, 1024]);

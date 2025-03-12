@@ -2,6 +2,7 @@ use crate::{Context, Id, VirtualMachine};
 
 pub mod attention;
 pub mod linear;
+pub mod linear_residual;
 pub mod mlp;
 pub mod normalization;
 pub mod self_attn;

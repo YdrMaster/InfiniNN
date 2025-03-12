@@ -4,7 +4,10 @@ use super::{
 };
 use crate::{
     Context, Id, Tensor, VirtualMachine,
-    nn::attention::{Attention, KVCache},
+    nn::{
+        attention::{Attention, KVCache},
+        linear_residual::{self, LinearResidual},
+    },
     op::{self, Add, RoPE},
     split,
 };
@@ -48,8 +51,6 @@ where
 pub enum Obj {
     Sin,
     Cos,
-    AttnOWeight,
-    AttnOBias,
 }
 
 impl Id for Obj {
@@ -57,8 +58,6 @@ impl Id for Obj {
         match self {
             Self::Sin => "sin",
             Self::Cos => "cos",
-            Self::AttnOWeight => "o.weight",
-            Self::AttnOBias => "o.bias",
         }
     }
 
@@ -69,22 +68,24 @@ impl Id for Obj {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Sub {
-    AttnQkvLinear,
+    QkvLinear,
     Attn(usize),
+    OutputLinear,
 }
 
 impl Id for Sub {
     fn name(&self) -> &str {
         match self {
-            Self::AttnQkvLinear => "qkv",
+            Self::QkvLinear => "qkv",
             Self::Attn(_) => "attn",
+            Self::OutputLinear => "output",
         }
     }
 
     fn idx(&self) -> Option<usize> {
         match self {
-            Self::AttnQkvLinear => None,
             &Self::Attn(i) => Some(i),
+            Self::QkvLinear | Sub::OutputLinear => None,
         }
     }
 }
@@ -114,8 +115,8 @@ where
             attn_o_bias,
         } = self;
         let Args {
-            mut y,
-            mut x,
+            y,
+            x,
             pos,
             n_sin,
             n_cos,
@@ -124,11 +125,11 @@ where
         } = args;
 
         let dt = x.dt();
-        let &[n, d] = x.shape() else { panic!() };
+        let &[n, _] = x.shape() else { panic!() };
 
         let qkv = ctx.workspace(dt, &[n, (nh + nkvh + nkvh) * dh]);
         ctx.trap(
-            Sub::AttnQkvLinear,
+            Sub::QkvLinear,
             &Linear {
                 dt_w,
                 bias: attn_qkv_bias,
@@ -183,27 +184,16 @@ where
             )
         }
 
-        let w = ctx
-            .get_mapped(Obj::AttnOWeight, dt_w, &[d, nh * dh])
-            .transpose(&[1, 0]);
-        if attn_o_bias {
-            {
-                let x1 = if residual { &mut x } else { &mut y };
-                {
-                    let down_bias = ctx
-                        .get_mapped(Obj::AttnOBias, dt_w, &[1, d])
-                        .broadcast(0, n);
-                    ctx.rearrange(x1, &down_bias)
-                }
-                ctx.mat_mul(x1, 1., &o, &w, 1.)
-            }
-            if residual {
-                ctx.add(&mut y, &x)
-            }
-        } else {
-            let beta = if residual { 1. } else { 0. };
-            ctx.mat_mul(&mut y, beta, &o, &w, 1.)
-        }
+        ctx.trap(
+            Sub::OutputLinear,
+            &LinearResidual {
+                dt_w,
+                bias: attn_o_bias,
+                scale: 1.,
+                residual,
+            },
+            linear_residual::Args { y, x: o, y_: x },
+        )
     }
 }
 
@@ -212,7 +202,7 @@ mod test {
     use super::{Args, Obj, Request, SelfAttn, Sub};
     use crate::{
         Exec, Map, VirtualMachine, dev_id,
-        nn::{WeightBias, linear},
+        nn::{WeightBias, linear::Linear, linear_residual::LinearResidual},
         op::AttnMask,
         test::TestVM,
     };
@@ -271,14 +261,18 @@ mod test {
             let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
             let attn_o_w = vec![0u8; D * NH * DH * 2];
             let attn_o_b = vec![0u8; D * 2];
+
             let self_attn = vm.map::<SelfAttn>(pid, DEVICE);
-            let linear = self_attn.step_into::<linear::Linear>(Sub::AttnQkvLinear);
-            linear.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
-            linear.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
-            self_attn.map_host(Obj::AttnOWeight, Box::new(attn_o_w));
-            self_attn.map_host(Obj::AttnOBias, Box::new(attn_o_b));
             self_attn.map_host(Obj::Sin, Box::new(sin));
             self_attn.map_host(Obj::Cos, Box::new(cos));
+
+            let qkv = self_attn.step_into::<Linear>(Sub::QkvLinear);
+            qkv.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
+            qkv.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
+
+            let output = self_attn.step_into::<LinearResidual>(Sub::OutputLinear);
+            output.map_host(WeightBias::Weight, Box::new(attn_o_w));
+            output.map_host(WeightBias::Bias, Box::new(attn_o_b));
 
             vm.exec(
                 pid,
@@ -310,13 +304,17 @@ mod test {
             let sin = vec![0u8; MAX_CTX * DH / 2 * 2];
             let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
             let attn_o_w = vec![0u8; D * NH * DH * 2];
+
             let self_attn = vm.map::<SelfAttn>(pid, DEVICE);
-            let linear = self_attn.step_into::<linear::Linear>(Sub::AttnQkvLinear);
-            linear.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
-            linear.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
-            self_attn.map_host(Obj::AttnOWeight, Box::new(attn_o_w));
             self_attn.map_host(Obj::Sin, Box::new(sin));
             self_attn.map_host(Obj::Cos, Box::new(cos));
+
+            let qkv = self_attn.step_into::<Linear>(Sub::QkvLinear);
+            qkv.map_host(WeightBias::Weight, Box::new(attn_qkv_w));
+            qkv.map_host(WeightBias::Bias, Box::new(attn_qkv_b));
+
+            let output = self_attn.step_into::<LinearResidual>(Sub::OutputLinear);
+            output.map_host(WeightBias::Weight, Box::new(attn_o_w));
 
             vm.exec(
                 pid,
