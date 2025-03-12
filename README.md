@@ -20,4 +20,7 @@
 - [attention](/src/nn/attention.rs)
 - [self-attention](/src/nn/self_attn.rs)
 - [mlp](/src/nn/mlp.rs)
+
+- [token-embed](/src/nn/token_embed.rs)
 - [transformer-block](/src/nn/transformer_blk.rs)
+- [lm-output](/src/nn/lm_output.rs)

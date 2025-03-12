@@ -111,9 +111,9 @@ impl VirtualMachine for TestVM {
         let bcb = bcbs.get_mut(&blob.id).unwrap();
         bcb.rc -= 1;
         if bcb.rc == 0 {
+            println!("{} free %{}", bcb.obj.domain(), bcb.id);
             if !maps.contains_key(bcb.obj.as_str()) {
-                let bcb = bcbs.remove(&blob.id).unwrap();
-                println!("{} free %{}", bcb.obj.domain(), bcb.id)
+                bcbs.remove(&blob.id).unwrap();
             }
         }
     }

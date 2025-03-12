@@ -4,6 +4,7 @@ use std::ops::Deref;
 pub mod attention;
 pub mod linear;
 pub mod linear_residual;
+pub mod lm_output;
 pub mod mlp;
 pub mod normalization;
 pub mod self_attn;

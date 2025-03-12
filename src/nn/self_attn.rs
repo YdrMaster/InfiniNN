@@ -235,27 +235,27 @@ mod test {
 
     fn args(vm: &TestVM) -> Args<TestVM> {
         Args {
-            y: vm.workspace( ty::F16, &[N, D]),
-            x: vm.workspace( ty::F16, &[N, D]),
-            pos: vm.workspace( ty::U32, &[N]),
+            y: vm.workspace(ty::F16, &[N, D]),
+            x: vm.workspace(ty::F16, &[N, D]),
+            pos: vm.workspace(ty::U32, &[N]),
             n_sin: MAX_CTX,
             n_cos: MAX_CTX,
             reqs: vec![
                 Request {
-                    k_cache: vm.workspace( ty::F16, &[MAX_CTX, NKVH, DH]),
-                    v_cache: vm.workspace( ty::F16, &[MAX_CTX, NKVH, DH]),
+                    k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                    v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
                     n_seq: 7,
                     pos: 20,
                 },
                 Request {
-                    k_cache: vm.workspace( ty::F16, &[MAX_CTX, NKVH, DH]),
-                    v_cache: vm.workspace( ty::F16, &[MAX_CTX, NKVH, DH]),
+                    k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                    v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
                     n_seq: 1,
                     pos: 30,
                 },
                 Request {
-                    k_cache: vm.workspace( ty::F16, &[MAX_CTX, NKVH, DH]),
-                    v_cache: vm.workspace( ty::F16, &[MAX_CTX, NKVH, DH]),
+                    k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                    v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
                     n_seq: 3,
                     pos: 40,
                 },

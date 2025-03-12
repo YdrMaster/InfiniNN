@@ -183,8 +183,8 @@ mod test {
                     down_bias: false,
                 },
                 Args {
-                    y: vm.workspace( ty::F16, &[N, D]),
-                    x: vm.workspace( ty::F16, &[N, D]),
+                    y: vm.workspace(ty::F16, &[N, D]),
+                    x: vm.workspace(ty::F16, &[N, D]),
                     scale: 1.,
                     residual: true,
                 },
