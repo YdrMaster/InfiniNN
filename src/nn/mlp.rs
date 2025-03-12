@@ -11,11 +11,11 @@ use crate::{
 use digit_layout::DigitLayout;
 
 pub struct Mlp {
-    act: Activation,
-    dt_w: DigitLayout,
-    di: usize,
-    up_bias: bool,
-    down_bias: bool,
+    pub act: Activation,
+    pub dt_w: DigitLayout,
+    pub di: usize,
+    pub up_bias: bool,
+    pub down_bias: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -28,10 +28,10 @@ pub struct Args<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    y: Tensor<'vm, VM>,
-    x: Tensor<'vm, VM>,
-    scale: f32,
-    residual: bool,
+    pub y: Tensor<'vm, VM>,
+    pub x: Tensor<'vm, VM>,
+    pub scale: f32,
+    pub residual: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

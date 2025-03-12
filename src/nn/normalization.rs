@@ -6,8 +6,8 @@ use crate::{
 use digit_layout::DigitLayout;
 
 pub struct Normalization {
-    ty: Type,
-    dt_w: DigitLayout,
+    pub ty: Type,
+    pub dt_w: DigitLayout,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -20,8 +20,8 @@ pub struct Args<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    y: Tensor<'vm, VM>,
-    x: Tensor<'vm, VM>,
+    pub y: Tensor<'vm, VM>,
+    pub x: Tensor<'vm, VM>,
 }
 
 pub trait Ops: LayerNorm + RmsNorm {}

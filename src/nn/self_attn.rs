@@ -15,36 +15,35 @@ use digit_layout::DigitLayout;
 use itertools::izip;
 
 pub struct SelfAttn {
-    dt_w: DigitLayout,
-    nh: usize,
-    nkvh: usize,
-    dh: usize,
-    mask: AttnMask,
-    attn_qkv_bias: bool,
-    attn_o_bias: bool,
+    pub dt_w: DigitLayout,
+    pub nh: usize,
+    pub nkvh: usize,
+    pub dh: usize,
+    pub mask: AttnMask,
+    pub qkv_bias: bool,
+    pub o_bias: bool,
 }
 
 pub struct Args<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    y: Tensor<'vm, VM>,   // [n, d]
-    x: Tensor<'vm, VM>,   // [n, d]
-    pos: Tensor<'vm, VM>, // [n]
-    n_sin: usize,
-    n_cos: usize,
-    reqs: Vec<Request<'vm, VM>>,
-    residual: bool,
+    pub y: Tensor<'vm, VM>,   // [n, d]
+    pub x: Tensor<'vm, VM>,   // [n, d]
+    pub pos: Tensor<'vm, VM>, // [n]
+    pub n_sin: usize,
+    pub n_cos: usize,
+    pub reqs: Vec<Request<'vm, VM>>,
 }
 
 pub struct Request<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    k_cache: Tensor<'vm, VM>, // [k_buf, nkvh, dh]
-    v_cache: Tensor<'vm, VM>, // [v_buf, nkvh, dh]
-    n_seq: usize,
-    pos: usize,
+    pub k_cache: Tensor<'vm, VM>, // [k_buf, nkvh, dh]
+    pub v_cache: Tensor<'vm, VM>, // [v_buf, nkvh, dh]
+    pub n_seq: usize,
+    pub pos: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -107,8 +106,8 @@ where
             nkvh,
             dh,
             mask,
-            attn_qkv_bias,
-            attn_o_bias,
+            qkv_bias: attn_qkv_bias,
+            o_bias: attn_o_bias,
         } = self;
         let Args {
             y,
@@ -117,7 +116,6 @@ where
             n_sin,
             n_cos,
             reqs,
-            residual,
         } = args;
 
         let dt = x.dt();
@@ -186,7 +184,7 @@ where
                 dt_w,
                 bias: attn_o_bias,
                 scale: 1.,
-                residual,
+                residual: true,
             },
             linear_residual::Args { y, x: o, y_: x },
         )
@@ -241,7 +239,6 @@ mod test {
                     pos: 40,
                 },
             ],
-            residual: true,
         }
     }
 
@@ -279,8 +276,8 @@ mod test {
                     nkvh: NKVH,
                     dh: DH,
                     mask: AttnMask::None,
-                    attn_qkv_bias: true,
-                    attn_o_bias: true,
+                    qkv_bias: true,
+                    o_bias: true,
                 },
                 args(&vm),
             )
@@ -321,8 +318,8 @@ mod test {
                     nkvh: NKVH,
                     dh: DH,
                     mask: AttnMask::Causal,
-                    attn_qkv_bias: true,
-                    attn_o_bias: false,
+                    qkv_bias: true,
+                    o_bias: false,
                 },
                 args(&vm),
             )
