@@ -7,6 +7,7 @@ mod rms_norm;
 mod rope;
 mod softmax;
 mod swiglu;
+mod token_embed;
 
 pub use add::Add;
 pub use gelu::GeLU;
@@ -17,3 +18,4 @@ pub use rms_norm::RmsNorm;
 pub use rope::RoPE;
 pub use softmax::{AttnMask, Softmax};
 pub use swiglu::SwiGLU;
+pub use token_embed::TokenEmbed;

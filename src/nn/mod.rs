@@ -7,6 +7,7 @@ pub mod linear_residual;
 pub mod mlp;
 pub mod normalization;
 pub mod self_attn;
+pub mod token_embed;
 pub mod transformer_blk;
 
 pub trait NuralNetwork<VM>: Sized
