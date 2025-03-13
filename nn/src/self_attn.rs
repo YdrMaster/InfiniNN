@@ -46,6 +46,20 @@ where
     pub pos: usize,
 }
 
+impl<VM> Clone for Request<'_, VM>
+where
+    VM: VirtualMachine + ?Sized,
+{
+    fn clone(&self) -> Self {
+        Self {
+            k_cache: self.k_cache.clone(),
+            v_cache: self.v_cache.clone(),
+            n_seq: self.n_seq,
+            pos: self.pos,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Obj {
     Sin,
