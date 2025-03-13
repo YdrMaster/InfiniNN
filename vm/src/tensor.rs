@@ -51,6 +51,10 @@ impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
         self.dt
     }
 
+    pub fn layout(&self) -> &ArrayLayout<4> {
+        &self.layout
+    }
+
     pub fn shape(&self) -> &[usize] {
         self.layout.shape()
     }
@@ -104,6 +108,10 @@ impl<VM: VirtualMachine + ?Sized> Tensor<'_, VM> {
 
     pub fn slice(self, axis: usize, start: usize, len: usize) -> Self {
         self.map_layout(|l| l.slice(axis, start, 1, len))
+    }
+
+    pub fn index(self, axis: usize, index: usize) -> Self {
+        self.map_layout(|l| l.index(axis, index))
     }
 
     pub fn split<'a>(&'a self, axis: usize, parts: &'a [usize]) -> impl Iterator<Item = Self> + 'a {

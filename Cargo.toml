@@ -4,5 +4,7 @@ resolver = "3"
 package.edition = "2024"
 
 [workspace.dependencies]
+vm.path = "vm"
+nn.path = "nn"
 digit-layout = "0.3"
 ndarray-layout = "0.2"

@@ -15,7 +15,7 @@ pub use layer_norm::LayerNorm;
 pub use mat_mul::MatMul;
 pub use rearrange::Rearrange;
 pub use rms_norm::RmsNorm;
-pub use rope::RoPE;
+pub use rope::{RoPE, RotaryType};
 pub use softmax::{AttnMask, Softmax};
 pub use swiglu::SwiGLU;
 pub use token_embed::TokenEmbed;

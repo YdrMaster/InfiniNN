@@ -108,10 +108,10 @@ where
 }
 
 pub struct Data {
-    pre_norm: WeightBiasData,
-    self_attn: self_attn::Data,
-    post_norm: WeightBiasData,
-    mlp: mlp::Data,
+    pub pre_norm: WeightBiasData,
+    pub self_attn: self_attn::Data,
+    pub post_norm: WeightBiasData,
+    pub mlp: mlp::Data,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
