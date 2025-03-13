@@ -97,10 +97,13 @@ where
         };
         {
             let k = k.transpose(&[2, 1]);
-            let mut att = ctx.workspace(dt, &[nkvh, gh * n_seq, n_att]);
-            ctx.mat_mul(&mut att, 0., &qx, &k, (dh as f32).sqrt().recip());
-            ctx.softmax(&mut att, mask);
-            ctx.mat_mul(&mut qx, 0., &att, &v, 1.)
+            let att = ctx.workspace(dt, &[nkvh * gh * n_seq, n_att]);
+            let mut att_mat_mul = att.clone().tile(0, &[nkvh, gh * n_seq]);
+            let mut att_softmax = att./******/tile(0, &[nkvh * gh, n_seq]);
+
+            ctx.mat_mul(&mut att_mat_mul, 0., &qx, &k, (dh as f32).sqrt().recip());
+            ctx.softmax(&mut att_softmax, mask);
+            ctx.mat_mul(&mut qx, 0., &att_mat_mul, &v, 1.)
         }
         if !VM::Blob::eq(qx.blob(), o.blob()) {
             let mut o = o.tile(0, &[nkvh, gh]);
