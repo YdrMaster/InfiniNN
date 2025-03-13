@@ -1,7 +1,7 @@
 mod context;
 mod op;
 
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 use vm::{Id, VirtualMachine};
 
 pub mod attention;
@@ -38,10 +38,10 @@ pub enum WeightBias {
 }
 
 impl Id for WeightBias {
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<str> {
         match self {
-            Self::Weight => "weight",
-            Self::Bias => "bias",
+            Self::Weight => "weight".into(),
+            Self::Bias => "bias".into(),
         }
     }
 }

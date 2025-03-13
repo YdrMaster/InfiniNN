@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{
     Context, Mapping, NuralNetwork, WeightBiasData,
     mlp::{self, Activation, Mlp},
@@ -121,12 +123,12 @@ pub enum Sub {
 }
 
 impl Id for Sub {
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<str> {
         match self {
-            Sub::PreNorm => "pre-norm",
-            Sub::SelfAttn => "self-attn",
-            Sub::PostNorm => "post-norm",
-            Sub::Mlp => "mlp",
+            Sub::PreNorm => "pre-norm".into(),
+            Sub::SelfAttn => "self-attn".into(),
+            Sub::PostNorm => "post-norm".into(),
+            Sub::Mlp => "mlp".into(),
         }
     }
 }
@@ -226,11 +228,11 @@ mod test {
     };
     use digit_layout::{DigitLayout, types as ty};
     use test_vm::{TestVM, test_data};
-    use vm::{VirtualMachine, dev_id};
+    use vm::{VirtualMachine, device_id};
 
     #[test]
     fn test() {
-        const DEVICE: dev_id = 0;
+        const DEVICE: device_id = 0;
 
         const DT_W: DigitLayout = ty::F16;
         const DT_NORM: DigitLayout = ty::F32;

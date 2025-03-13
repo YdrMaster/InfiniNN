@@ -2,7 +2,7 @@ mod op;
 
 use digit_layout::DigitLayout;
 use patricia_tree::PatriciaMap;
-use std::{cell::RefCell, collections::HashMap, ops::Deref};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, ops::Deref};
 use vm::{Id, ObjId, VirtualMachine, pid};
 
 #[derive(Default)]
@@ -34,8 +34,8 @@ impl vm::Blob for Blob {
 pub struct CommGroup(usize);
 
 impl Id for CommGroup {
-    fn name(&self) -> &str {
-        "test-comm"
+    fn name(&self) -> Cow<str> {
+        "test-comm".into()
     }
 
     fn idx(&self) -> Option<usize> {
@@ -88,7 +88,7 @@ impl VirtualMachine for TestVM {
     fn get_mapped(&self, obj: ObjId) -> Self::Blob {
         let mut internal = self.0.borrow_mut();
 
-        let id = *internal.maps.get_mut(obj.as_str()).unwrap();
+        let id = *internal.maps.get_mut(&obj).unwrap();
 
         println!("{} load %{id} @ {}", obj.domain(), obj.body());
 
@@ -112,7 +112,7 @@ impl VirtualMachine for TestVM {
         bcb.rc -= 1;
         if bcb.rc == 0 {
             println!("{} free %{}", bcb.obj.domain(), bcb.id);
-            if !maps.contains_key(bcb.obj.as_str()) {
+            if !maps.contains_key(&bcb.obj) {
                 bcbs.remove(&blob.id).unwrap();
             }
         }
@@ -139,7 +139,7 @@ impl TestVM {
         println!("{domain} alloc %{id} {size} bytes @ {body}");
 
         if obj.is_obj() {
-            assert!(internal.maps.insert(obj.as_str(), id).is_none())
+            assert!(internal.maps.insert(&obj, id).is_none())
         }
 
         let bcb = Bcb {

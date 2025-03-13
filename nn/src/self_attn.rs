@@ -7,7 +7,7 @@ use crate::{
 };
 use digit_layout::DigitLayout;
 use itertools::izip;
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 use vm::{
     Id, Tensor, VirtualMachine,
     op::{AttnMask, RoPE},
@@ -53,10 +53,10 @@ pub enum Obj {
 }
 
 impl Id for Obj {
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<str> {
         match self {
-            Self::Sin => "sin",
-            Self::Cos => "cos",
+            Self::Sin => "sin".into(),
+            Self::Cos => "cos".into(),
         }
     }
 }
@@ -76,11 +76,11 @@ pub enum Sub {
 }
 
 impl Id for Sub {
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<str> {
         match self {
-            Self::QkvLinear => "qkv",
-            Self::Attn(_) => "attn",
-            Self::OutputLinear => "output",
+            Self::QkvLinear => "qkv".into(),
+            Self::Attn(_) => "attn".into(),
+            Self::OutputLinear => "output".into(),
         }
     }
 
@@ -220,10 +220,10 @@ mod test {
     use crate::{VirtualMachineExt, WeightBiasData};
     use digit_layout::{DigitLayout, types as ty};
     use test_vm::TestVM;
-    use vm::{VirtualMachine, dev_id, op::AttnMask};
+    use vm::{VirtualMachine, device_id, op::AttnMask};
 
     const ARCH: &str = "self-attn";
-    const DEVICE: dev_id = 0;
+    const DEVICE: device_id = 0;
     const DT_W: DigitLayout = ty::F16;
     const NH: usize = 64;
     const NKVH: usize = 8;

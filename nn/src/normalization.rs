@@ -71,9 +71,9 @@ mod test {
     use crate::{VirtualMachineExt, WeightBiasData};
     use digit_layout::types as ty;
     use test_vm::TestVM;
-    use vm::{VirtualMachine, dev_id};
+    use vm::{VirtualMachine, device_id};
 
-    const DEVICE: dev_id = 0;
+    const DEVICE: device_id = 0;
     const D: usize = 1024;
     const N: usize = 7;
 

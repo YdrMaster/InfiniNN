@@ -1,16 +1,18 @@
+mod stack;
 mod tensor;
 
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 pub mod op;
 
+pub use stack::{ObjId, StackTracer};
 pub use tensor::Tensor;
 
 #[allow(non_camel_case_types)]
 pub type pid = u64;
 
 #[allow(non_camel_case_types)]
-pub type dev_id = u64;
+pub type device_id = u64;
 
 /// 人工智能虚拟系统。
 pub trait VirtualMachine {
@@ -46,15 +48,15 @@ pub trait Value: Copy + Eq + Send + Sync + 'static {}
 impl<T> Value for T where T: Copy + Eq + Send + Sync + 'static {}
 
 pub trait Id: Value {
-    fn name(&self) -> &str;
+    fn name(&self) -> Cow<str>;
     fn idx(&self) -> Option<usize> {
         None
     }
 }
 
 impl Id for () {
-    fn name(&self) -> &str {
-        ""
+    fn name(&self) -> Cow<str> {
+        Cow::Borrowed("*")
     }
 }
 
@@ -65,34 +67,4 @@ pub trait Blob {
 
 pub trait CommGroup: Id {
     fn n_members(&self) -> usize;
-}
-
-#[derive(Clone)]
-pub struct ObjId {
-    path: String,
-    is_obj: bool,
-}
-
-impl ObjId {
-    pub fn new(path: String, is_obj: bool) -> Self {
-        Self { path, is_obj }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.path
-    }
-
-    pub fn is_obj(&self) -> bool {
-        self.is_obj
-    }
-
-    pub fn domain(&self) -> &str {
-        let idx = self.path.find(']').unwrap() + 1;
-        &self.path[..idx]
-    }
-
-    pub fn body(&self) -> &str {
-        let idx = self.path.find(']').unwrap() + 1;
-        &self.path[idx..]
-    }
 }

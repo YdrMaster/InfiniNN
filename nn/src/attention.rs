@@ -132,9 +132,9 @@ mod test {
     use crate::VirtualMachineExt;
     use digit_layout::types as ty;
     use test_vm::TestVM;
-    use vm::{VirtualMachine, dev_id, op::AttnMask};
+    use vm::{VirtualMachine, device_id, op::AttnMask};
 
-    const DEVICE: dev_id = 0;
+    const DEVICE: device_id = 0;
 
     #[test]
     fn test_no_cache() {

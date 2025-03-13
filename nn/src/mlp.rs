@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{
     Context, Mapping, NuralNetwork, WeightBiasData,
     linear::{self, Linear},
@@ -46,10 +48,10 @@ pub enum Sub {
 }
 
 impl Id for Sub {
-    fn name(&self) -> &str {
+    fn name(&self) -> Cow<str> {
         match self {
-            Self::UpLinear => "up",
-            Self::DownLinear => "down",
+            Self::UpLinear => "up".into(),
+            Self::DownLinear => "down".into(),
         }
     }
 }
@@ -145,9 +147,9 @@ mod test {
     use crate::{VirtualMachineExt, WeightBiasData};
     use digit_layout::types as ty;
     use test_vm::TestVM;
-    use vm::{VirtualMachine, dev_id};
+    use vm::{VirtualMachine, device_id};
 
-    const DEVICE: dev_id = 0;
+    const DEVICE: device_id = 0;
     const D: usize = 1024;
     const DI: usize = 1536;
     const N: usize = 7;

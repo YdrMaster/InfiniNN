@@ -110,9 +110,9 @@ mod test {
     };
     use digit_layout::{DigitLayout, types as ty};
     use test_vm::{TestVM, test_data};
-    use vm::{VirtualMachine, dev_id};
+    use vm::{VirtualMachine, device_id};
 
-    const DEVICE: dev_id = 0;
+    const DEVICE: device_id = 0;
     const DT: DigitLayout = ty::F16;
     const DT_NORM: DigitLayout = ty::F32;
     const D: usize = 1024;
