@@ -12,6 +12,7 @@ use vm::{
     split,
 };
 
+#[derive(Clone)]
 pub struct Mlp {
     pub act: Activation,
     pub dt_w: DigitLayout,

@@ -5,6 +5,7 @@ use vm::{
     op::{LayerNorm, RmsNorm},
 };
 
+#[derive(Clone)]
 pub struct Normalization {
     pub ty: Type,
     pub dt_w: DigitLayout,

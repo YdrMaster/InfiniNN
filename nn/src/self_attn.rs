@@ -14,6 +14,7 @@ use vm::{
     split,
 };
 
+#[derive(Clone)]
 pub struct SelfAttn {
     pub dt_w: DigitLayout,
     pub nh: usize,

@@ -23,4 +23,5 @@
 
 - [token-embed](/nn/src/token_embed.rs)
 - [transformer-block](/nn/src/transformer_blk.rs)
+- [transformer](/nn/src/transformer.rs)
 - [lm-output](/nn/src/lm_output.rs)

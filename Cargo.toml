@@ -6,5 +6,6 @@ package.edition = "2024"
 [workspace.dependencies]
 vm.path = "vm"
 nn.path = "nn"
-digit-layout = "0.3"
+digit-layout = "0.2"
 ndarray-layout = "0.2"
+patricia_tree = "0.9"

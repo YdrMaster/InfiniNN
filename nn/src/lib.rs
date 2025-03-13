@@ -12,6 +12,7 @@ pub mod mlp;
 pub mod normalization;
 pub mod self_attn;
 pub mod token_embed;
+pub mod transformer;
 pub mod transformer_blk;
 
 pub use context::{Context, Mapping, VirtualMachineExt};

@@ -8,6 +8,7 @@ use digit_layout::DigitLayout;
 use std::borrow::Cow;
 use vm::{Id, Tensor, VirtualMachine, op::AttnMask};
 
+#[derive(Clone)]
 pub struct TransformerBlk {
     pub norm: Normalization,
     pub self_attn: SelfAttn,

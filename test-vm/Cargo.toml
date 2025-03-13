@@ -7,4 +7,4 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 [dependencies]
 vm.workspace = true
 digit-layout.workspace = true
-patricia_tree = "0.9"
+patricia_tree.workspace = true
