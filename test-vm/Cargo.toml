@@ -1,0 +1,10 @@
+[package]
+name = "test-vm"
+version = "0.0.1"
+edition.workspace = true
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+
+[dependencies]
+vm.path = "../vm"
+digit-layout.workspace = true
+patricia_tree = "0.9"
