@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use crate::{
     Context, Mapping, NuralNetwork, WeightBiasData,
     mlp::{self, Activation, Mlp},
@@ -7,6 +5,7 @@ use crate::{
     self_attn::{self, Request, SelfAttn},
 };
 use digit_layout::DigitLayout;
+use std::borrow::Cow;
 use vm::{Id, Tensor, VirtualMachine, op::AttnMask};
 
 pub struct TransformerBlk {
@@ -100,8 +99,8 @@ pub struct Args<'vm, VM>
 where
     VM: VirtualMachine + ?Sized,
 {
-    pub embd: Tensor<'vm, VM>, // [n, d]
-    pub pos: Tensor<'vm, VM>,  // [d]
+    pub embed: Tensor<'vm, VM>, // [n, d]
+    pub pos: Tensor<'vm, VM>,   // [d]
     pub n_sin: usize,
     pub n_cos: usize,
     pub reqs: Vec<Request<'vm, VM>>,
@@ -113,7 +112,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            embd: self.embd.clone(),
+            embed: self.embed.clone(),
             pos: self.pos.clone(),
             n_sin: self.n_sin,
             n_cos: self.n_cos,
@@ -184,7 +183,7 @@ where
             mlp,
         } = self;
         let Args {
-            embd: x,
+            embed: x,
             pos,
             n_sin,
             n_cos,
@@ -303,7 +302,7 @@ mod test {
             DEVICE,
             &TransformerBlk::llama(DT_NORM, DT_W, NH, NKVH, DH, DI, 1e-5),
             Args {
-                embd: vm.workspace(DT_W, &[N, D]),
+                embed: vm.workspace(DT_W, &[N, D]),
                 pos: vm.workspace(ty::U32, &[N]),
                 n_sin: MAX_CTX,
                 n_cos: MAX_CTX,

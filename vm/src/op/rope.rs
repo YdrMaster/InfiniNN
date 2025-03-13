@@ -83,7 +83,7 @@ fn generate(nctx: usize, dh: usize, theta: f32, f: impl Fn(f32, f32) -> f32) -> 
     for i in 0..size {
         let pos = (i / dh) as f32;
         let idx = (i % dh) as f32;
-        let theta = theta.powf(-(idx as f32 / dh as f32));
+        let theta = theta.powf(-(idx / dh as f32));
 
         let (sin_, cos_) = f(theta, pos).sin_cos();
 

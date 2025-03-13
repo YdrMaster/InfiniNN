@@ -69,6 +69,10 @@ impl AsRef<[u8]> for ObjId {
 }
 
 impl ObjId {
+    pub fn global() -> Self {
+        StackTracer::new(pid::MAX, device_id::MAX).path()
+    }
+
     pub fn is_obj(&self) -> bool {
         matches!(self.0.last(), Some(1))
     }

@@ -53,9 +53,8 @@ pub trait VirtualMachineExt: VirtualMachine {
     }
 
     fn workspace<'vm>(&'vm self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, Self> {
-        let obj = StackTracer::new(pid::MAX, device_id::MAX).path();
         let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
-        let blob = self.alloc(obj, size);
+        let blob = self.alloc(ObjId::global(), size);
         Tensor::new(dt, shape, blob, self)
     }
 }
@@ -101,6 +100,16 @@ where
     pub fn workspace(&self, dt: DigitLayout, shape: &[usize]) -> Tensor<'vm, VM> {
         let size = shape.iter().product::<usize>() * dt.nbytes() / dt.group_size();
         let blob = self.0.vm.alloc(self.0.stack.path(), size);
+        Tensor::new(dt, shape, blob, self.0.vm)
+    }
+
+    pub fn map_host(
+        &self,
+        dt: DigitLayout,
+        shape: &[usize],
+        data: Box<dyn Deref<Target = [u8]>>,
+    ) -> Tensor<'vm, VM> {
+        let blob = self.0.vm.map_host(self.0.stack.path(), data);
         Tensor::new(dt, shape, blob, self.0.vm)
     }
 
