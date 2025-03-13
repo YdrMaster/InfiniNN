@@ -1,12 +1,12 @@
 use crate::{Blob, VirtualMachine};
 use digit_layout::DigitLayout;
 use ndarray_layout::{ArrayLayout, Endian::BigEndian};
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Tensor<'vm, VM: VirtualMachine + ?Sized> {
     dt: DigitLayout,
     layout: ArrayLayout<4>,
-    blob: Rc<BlobGuard<'vm, VM>>,
+    blob: Arc<BlobGuard<'vm, VM>>,
 }
 
 struct BlobGuard<'vm, VM: VirtualMachine + ?Sized> {
@@ -22,7 +22,7 @@ impl<'vm, VM: VirtualMachine + ?Sized> Tensor<'vm, VM> {
         Self {
             dt,
             layout,
-            blob: Rc::new(BlobGuard {
+            blob: Arc::new(BlobGuard {
                 vm,
                 blob: Some(blob),
             }),

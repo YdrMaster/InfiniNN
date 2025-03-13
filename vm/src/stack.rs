@@ -1,5 +1,5 @@
 use crate::{Id, device_id, pid};
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 #[derive(Clone)]
 pub struct StackTracer {
@@ -55,12 +55,12 @@ impl StackTracer {
         seq.extend_from_slice(&domain.pid.to_ne_bytes());
         seq.extend_from_slice(&domain.dev.to_ne_bytes());
         seq.push(if is_obj { 1 } else { 0 });
-        ObjId(seq.into_boxed_slice())
+        ObjId(seq.into())
     }
 }
 
 #[derive(Clone)]
-pub struct ObjId(Box<[u8]>);
+pub struct ObjId(Arc<[u8]>);
 
 impl AsRef<[u8]> for ObjId {
     fn as_ref(&self) -> &[u8] {
