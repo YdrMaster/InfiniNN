@@ -14,13 +14,13 @@
 
 通过下列示例了解详情：
 
-- [normalization](/src/nn/normalization.rs)
-- [Linear](/src/nn/linear.rs)
-- [linear-residual](/src/nn/linear_residual.rs)
-- [attention](/src/nn/attention.rs)
-- [self-attention](/src/nn/self_attn.rs)
-- [mlp](/src/nn/mlp.rs)
+- [normalization](/nn/src/normalization.rs)
+- [Linear](/nn/src/linear.rs)
+- [linear-residual](/nn/src/linear_residual.rs)
+- [attention](/nn/src/attention.rs)
+- [self-attention](/nn/src/self_attn.rs)
+- [mlp](/nn/src/mlp.rs)
 
-- [token-embed](/src/nn/token_embed.rs)
-- [transformer-block](/src/nn/transformer_blk.rs)
-- [lm-output](/src/nn/lm_output.rs)
+- [token-embed](/nn/src/token_embed.rs)
+- [transformer-block](/nn/src/transformer_blk.rs)
+- [lm-output](/nn/src/lm_output.rs)

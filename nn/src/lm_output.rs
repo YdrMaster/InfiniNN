@@ -10,8 +10,8 @@ use vm::{
 };
 
 pub struct LmOutput {
-    norm: Normalization,
-    dt_w: DigitLayout,
+    pub norm: Normalization,
+    pub dt_w: DigitLayout,
 }
 
 pub struct Args<'vm, VM>
@@ -29,8 +29,8 @@ pub struct Request {
 }
 
 pub struct Data {
-    norm: WeightBiasData,
-    head: Box<dyn Deref<Target = [u8]>>,
+    pub norm: WeightBiasData,
+    pub head: Box<dyn Deref<Target = [u8]>>,
 }
 
 pub trait Ops: Rearrange + normalization::Ops + MatMul {}
