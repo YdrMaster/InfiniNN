@@ -108,13 +108,13 @@ mod test {
         VirtualMachineExt, WeightBiasData,
         normalization::{Normalization, Type},
     };
-    use digit_layout::{DigitLayout, types as ty};
+    use digit_layout::{DigitLayout, types};
     use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id};
 
     const DEVICE: device_id = 0;
-    const DT: DigitLayout = ty::F16;
-    const DT_NORM: DigitLayout = ty::F32;
+    const DT: DigitLayout = types::F16;
+    const DT_NORM: DigitLayout = types::F32;
     const D: usize = 1024;
     const DTOK: usize = 32000;
 

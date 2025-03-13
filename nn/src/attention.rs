@@ -133,11 +133,12 @@ where
 mod test {
     use super::{Args, Attention, KVCache};
     use crate::VirtualMachineExt;
-    use digit_layout::types as ty;
+    use digit_layout::{DigitLayout, types};
     use test_vm::TestVM;
     use vm::{VirtualMachine, device_id, op::AttnMask};
 
     const DEVICE: device_id = 0;
+    const DT: DigitLayout = types::F16;
 
     #[test]
     fn test_no_cache() {
@@ -153,10 +154,10 @@ mod test {
                 mask: AttnMask::Causal,
             },
             Args {
-                q: vm.workspace(ty::F16, &qo),
-                k: vm.workspace(ty::F16, &kv),
-                v: vm.workspace(ty::F16, &kv),
-                o: vm.workspace(ty::F16, &qo),
+                q: vm.workspace(DT, &qo),
+                k: vm.workspace(DT, &kv),
+                v: vm.workspace(DT, &kv),
+                o: vm.workspace(DT, &qo),
                 cache: None,
             },
         );
@@ -179,13 +180,13 @@ mod test {
                 mask: AttnMask::Causal,
             },
             Args {
-                q: vm.workspace(ty::F16, &qo),
-                k: vm.workspace(ty::F16, &kv),
-                v: vm.workspace(ty::F16, &kv),
-                o: vm.workspace(ty::F16, &qo),
+                q: vm.workspace(DT, &qo),
+                k: vm.workspace(DT, &kv),
+                v: vm.workspace(DT, &kv),
+                o: vm.workspace(DT, &qo),
                 cache: Some(KVCache {
-                    k_cache: vm.workspace(ty::F16, &kv_cache),
-                    v_cache: vm.workspace(ty::F16, &kv_cache),
+                    k_cache: vm.workspace(DT, &kv_cache),
+                    v_cache: vm.workspace(DT, &kv_cache),
                     pos: 100,
                 }),
             },

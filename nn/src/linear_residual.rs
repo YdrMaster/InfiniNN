@@ -84,11 +84,12 @@ where
 mod test {
     use super::{Args, LinearResidual};
     use crate::{VirtualMachineExt, WeightBiasData};
-    use digit_layout::types as ty;
-    use test_vm::TestVM;
+    use digit_layout::{DigitLayout, types};
+    use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id};
 
     const DEVICE: device_id = 0;
+    const DT: DigitLayout = types::F16;
     const D: usize = 1024;
     const DI: usize = 1536;
     const N: usize = 7;
@@ -98,33 +99,29 @@ mod test {
         let vm = TestVM::default();
         let pid = vm.register("linear-residual");
 
-        {
-            let w = vec![0u8; D * DI * 2];
-            let b = vec![0u8; DI * 2];
-            vm.init::<LinearResidual>(
-                pid,
-                DEVICE,
-                WeightBiasData {
-                    weight: Box::new(w),
-                    bias: Some(Box::new(b)),
-                },
-            )
-            .forward(
-                pid,
-                DEVICE,
-                &LinearResidual {
-                    dt_w: ty::F16,
-                    bias: true,
-                },
-                Args {
-                    y: vm.workspace(ty::F16, &[N, DI]),
-                    x: vm.workspace(ty::F16, &[N, D]),
-                    y_: vm.workspace(ty::F16, &[N, DI]),
-                    scale: 1.,
-                    residual: true,
-                },
-            );
-        }
+        vm.init::<LinearResidual>(
+            pid,
+            DEVICE,
+            WeightBiasData {
+                weight: test_data(DT, &[D, DI]),
+                bias: Some(test_data(DT, &[DI])),
+            },
+        )
+        .forward(
+            pid,
+            DEVICE,
+            &LinearResidual {
+                dt_w: DT,
+                bias: true,
+            },
+            Args {
+                y: vm.workspace(DT, &[N, DI]),
+                x: vm.workspace(DT, &[N, D]),
+                y_: vm.workspace(DT, &[N, DI]),
+                scale: 1.,
+                residual: true,
+            },
+        );
 
         vm.unregister(pid)
     }

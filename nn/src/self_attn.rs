@@ -233,13 +233,13 @@ where
 mod test {
     use super::{Args, Data, Request, SelfAttn};
     use crate::{VirtualMachineExt, WeightBiasData};
-    use digit_layout::{DigitLayout, types as ty};
-    use test_vm::TestVM;
+    use digit_layout::{DigitLayout, types};
+    use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id, op::AttnMask};
 
     const ARCH: &str = "self-attn";
     const DEVICE: device_id = 0;
-    const DT_W: DigitLayout = ty::F16;
+    const DT: DigitLayout = types::F16;
     const NH: usize = 64;
     const NKVH: usize = 8;
     const DH: usize = 128;
@@ -249,27 +249,27 @@ mod test {
 
     fn args(vm: &TestVM) -> Args<TestVM> {
         Args {
-            y: vm.workspace(ty::F16, &[N, D]),
-            x: vm.workspace(ty::F16, &[N, D]),
-            pos: vm.workspace(ty::U32, &[N]),
+            y: vm.workspace(DT, &[N, D]),
+            x: vm.workspace(DT, &[N, D]),
+            pos: vm.workspace(types::U32, &[N]),
             n_sin: MAX_CTX,
             n_cos: MAX_CTX,
             reqs: vec![
                 Request {
-                    k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
-                    v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                    k_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
+                    v_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
                     n_seq: 7,
                     pos: 20,
                 },
                 Request {
-                    k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
-                    v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                    k_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
+                    v_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
                     n_seq: 1,
                     pos: 30,
                 },
                 Request {
-                    k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
-                    v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                    k_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
+                    v_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
                     n_seq: 3,
                     pos: 40,
                 },
@@ -282,44 +282,36 @@ mod test {
         let vm = TestVM::default();
         let pid = vm.register(ARCH);
 
-        {
-            let attn_qkv_w = vec![0u8; (NH + NKVH + NKVH) * DH * D * 2];
-            let attn_qkv_b = vec![0u8; (NH + NKVH + NKVH) * DH * 2];
-            let sin = vec![0u8; MAX_CTX * DH / 2 * 2];
-            let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
-            let attn_o_w = vec![0u8; D * NH * DH * 2];
-            let attn_o_b = vec![0u8; D * 2];
-            vm.init::<SelfAttn>(
-                pid,
-                DEVICE,
-                Data {
-                    qkv: WeightBiasData {
-                        weight: Box::new(attn_qkv_w),
-                        bias: Some(Box::new(attn_qkv_b)),
-                    },
-                    sin: Box::new(sin),
-                    cos: Box::new(cos),
-                    output: WeightBiasData {
-                        weight: Box::new(attn_o_w),
-                        bias: Some(Box::new(attn_o_b)),
-                    },
+        vm.init::<SelfAttn>(
+            pid,
+            DEVICE,
+            Data {
+                qkv: WeightBiasData {
+                    weight: test_data(DT, &[(NH + NKVH + NKVH) * DH, D]),
+                    bias: Some(test_data(DT, &[(NH + NKVH + NKVH) * DH])),
                 },
-            )
-            .forward(
-                pid,
-                DEVICE,
-                &SelfAttn {
-                    dt_w: DT_W,
-                    nh: NH,
-                    nkvh: NKVH,
-                    dh: DH,
-                    mask: AttnMask::None,
-                    qkv_bias: true,
-                    o_bias: true,
+                sin: test_data(DT, &[MAX_CTX, DH / 2]),
+                cos: test_data(DT, &[MAX_CTX, DH / 2]),
+                output: WeightBiasData {
+                    weight: test_data(DT, &[D, NH * DH]),
+                    bias: Some(test_data(DT, &[D])),
                 },
-                args(&vm),
-            );
-        }
+            },
+        )
+        .forward(
+            pid,
+            DEVICE,
+            &SelfAttn {
+                dt_w: DT,
+                nh: NH,
+                nkvh: NKVH,
+                dh: DH,
+                mask: AttnMask::None,
+                qkv_bias: true,
+                o_bias: true,
+            },
+            args(&vm),
+        );
 
         vm.unregister(pid)
     }
@@ -329,43 +321,36 @@ mod test {
         let vm = TestVM::default();
         let pid = vm.register(ARCH);
 
-        {
-            let attn_qkv_w = vec![0u8; (NH + NKVH + NKVH) * DH * D * 2];
-            let attn_qkv_b = vec![0u8; (NH + NKVH + NKVH) * DH * 2];
-            let sin = vec![0u8; MAX_CTX * DH / 2 * 2];
-            let cos = vec![0u8; MAX_CTX * DH / 2 * 2];
-            let attn_o_w = vec![0u8; D * NH * DH * 2];
-            vm.init::<SelfAttn>(
-                pid,
-                DEVICE,
-                Data {
-                    qkv: WeightBiasData {
-                        weight: Box::new(attn_qkv_w),
-                        bias: Some(Box::new(attn_qkv_b)),
-                    },
-                    sin: Box::new(sin),
-                    cos: Box::new(cos),
-                    output: WeightBiasData {
-                        weight: Box::new(attn_o_w),
-                        bias: None,
-                    },
+        vm.init::<SelfAttn>(
+            pid,
+            DEVICE,
+            Data {
+                qkv: WeightBiasData {
+                    weight: test_data(DT, &[(NH + NKVH + NKVH) * DH, D]),
+                    bias: Some(test_data(DT, &[(NH + NKVH + NKVH) * DH])),
                 },
-            )
-            .forward(
-                pid,
-                DEVICE,
-                &SelfAttn {
-                    dt_w: DT_W,
-                    nh: NH,
-                    nkvh: NKVH,
-                    dh: DH,
-                    mask: AttnMask::Causal,
-                    qkv_bias: true,
-                    o_bias: false,
+                sin: test_data(DT, &[MAX_CTX, DH / 2]),
+                cos: test_data(DT, &[MAX_CTX, DH / 2]),
+                output: WeightBiasData {
+                    weight: test_data(DT, &[D, NH * DH]),
+                    bias: None,
                 },
-                args(&vm),
-            );
-        }
+            },
+        )
+        .forward(
+            pid,
+            DEVICE,
+            &SelfAttn {
+                dt_w: DT,
+                nh: NH,
+                nkvh: NKVH,
+                dh: DH,
+                mask: AttnMask::Causal,
+                qkv_bias: true,
+                o_bias: false,
+            },
+            args(&vm),
+        );
 
         vm.unregister(pid)
     }

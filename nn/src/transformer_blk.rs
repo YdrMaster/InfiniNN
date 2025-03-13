@@ -241,7 +241,7 @@ mod test {
         VirtualMachineExt, WeightBiasData, mlp,
         self_attn::{self, Request},
     };
-    use digit_layout::{DigitLayout, types as ty};
+    use digit_layout::{DigitLayout, types};
     use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id};
 
@@ -249,8 +249,8 @@ mod test {
     fn test() {
         const DEVICE: device_id = 0;
 
-        const DT_W: DigitLayout = ty::F16;
-        const DT_NORM: DigitLayout = ty::F32;
+        const DT: DigitLayout = types::F16;
+        const DT_NORM: DigitLayout = types::F32;
         const NH: usize = 64;
         const NKVH: usize = 8;
         const DH: usize = 128;
@@ -272,13 +272,13 @@ mod test {
                 },
                 self_attn: self_attn::Data {
                     qkv: WeightBiasData {
-                        weight: test_data(DT_W, &[(NH + NKVH + NKVH) * DH, D]),
+                        weight: test_data(DT, &[(NH + NKVH + NKVH) * DH, D]),
                         bias: None,
                     },
-                    sin: test_data(DT_W, &[MAX_CTX, DH / 2]),
-                    cos: test_data(DT_W, &[MAX_CTX, DH / 2]),
+                    sin: test_data(DT, &[MAX_CTX, DH / 2]),
+                    cos: test_data(DT, &[MAX_CTX, DH / 2]),
                     output: WeightBiasData {
-                        weight: test_data(DT_W, &[D, NH * DH]),
+                        weight: test_data(DT, &[D, NH * DH]),
                         bias: None,
                     },
                 },
@@ -288,11 +288,11 @@ mod test {
                 },
                 mlp: mlp::Data {
                     up: WeightBiasData {
-                        weight: test_data(DT_W, &[D * DI * 2]),
+                        weight: test_data(DT, &[D * DI * 2]),
                         bias: None,
                     },
                     down: WeightBiasData {
-                        weight: test_data(DT_W, &[DI * D]),
+                        weight: test_data(DT, &[DI * D]),
                         bias: None,
                     },
                 },
@@ -301,28 +301,28 @@ mod test {
         .forward(
             pid,
             DEVICE,
-            &TransformerBlk::llama(DT_NORM, DT_W, NH, NKVH, DH, DI, 1e-5),
+            &TransformerBlk::llama(DT_NORM, DT, NH, NKVH, DH, DI, 1e-5),
             Args {
-                embed: vm.workspace(DT_W, &[N, D]),
-                pos: vm.workspace(ty::U32, &[N]),
+                embed: vm.workspace(DT, &[N, D]),
+                pos: vm.workspace(types::U32, &[N]),
                 n_sin: MAX_CTX,
                 n_cos: MAX_CTX,
                 reqs: vec![
                     Request {
-                        k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
-                        v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                        k_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
+                        v_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
                         n_seq: 7,
                         pos: 20,
                     },
                     Request {
-                        k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
-                        v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                        k_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
+                        v_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
                         n_seq: 1,
                         pos: 30,
                     },
                     Request {
-                        k_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
-                        v_cache: vm.workspace(ty::F16, &[MAX_CTX, NKVH, DH]),
+                        k_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
+                        v_cache: vm.workspace(DT, &[MAX_CTX, NKVH, DH]),
                         n_seq: 3,
                         pos: 40,
                     },

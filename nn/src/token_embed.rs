@@ -55,12 +55,12 @@ where
 mod test {
     use super::{Args, Data, TokenEmbed};
     use crate::VirtualMachineExt;
-    use digit_layout::{DigitLayout, types as ty};
+    use digit_layout::{DigitLayout, types};
     use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id};
 
-    const DT: DigitLayout = ty::F16;
-    const DT_TOK: DigitLayout = ty::U32;
+    const DT: DigitLayout = types::F16;
+    const DT_TOK: DigitLayout = types::U32;
     const DEVICE: device_id = 0;
     const N_TOK: usize = 32000;
     const D: usize = 2048;

@@ -66,11 +66,12 @@ where
 mod test {
     use super::{Args, Linear};
     use crate::{VirtualMachineExt, WeightBiasData};
-    use digit_layout::types as ty;
-    use test_vm::TestVM;
+    use digit_layout::{DigitLayout, types};
+    use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id};
 
     const DEVICE: device_id = 0;
+    const DT: DigitLayout = types::F16;
     const D: usize = 1024;
     const DI: usize = 1536;
     const N: usize = 7;
@@ -80,30 +81,26 @@ mod test {
         let vm = TestVM::default();
         let pid = vm.register("linear");
 
-        {
-            let w = vec![0u8; D * DI * 2];
-            let b = vec![0u8; DI * 2];
-            vm.init::<Linear>(
-                pid,
-                DEVICE,
-                WeightBiasData {
-                    weight: Box::new(w),
-                    bias: Some(Box::new(b)),
-                },
-            )
-            .forward(
-                pid,
-                DEVICE,
-                &Linear {
-                    dt_w: ty::F16,
-                    bias: true,
-                },
-                Args {
-                    y: vm.workspace(ty::F16, &[N, DI]),
-                    x: vm.workspace(ty::F16, &[N, D]),
-                },
-            );
-        }
+        vm.init::<Linear>(
+            pid,
+            DEVICE,
+            WeightBiasData {
+                weight: test_data(DT, &[D, DI]),
+                bias: Some(test_data(DT, &[DI])),
+            },
+        )
+        .forward(
+            pid,
+            DEVICE,
+            &Linear {
+                dt_w: DT,
+                bias: true,
+            },
+            Args {
+                y: vm.workspace(DT, &[N, DI]),
+                x: vm.workspace(DT, &[N, D]),
+            },
+        );
 
         vm.unregister(pid)
     }

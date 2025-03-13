@@ -146,11 +146,12 @@ where
 mod test {
     use super::{Activation, Args, Data, Mlp};
     use crate::{VirtualMachineExt, WeightBiasData};
-    use digit_layout::types as ty;
-    use test_vm::TestVM;
+    use digit_layout::{DigitLayout, types};
+    use test_vm::{TestVM, test_data};
     use vm::{VirtualMachine, device_id};
 
     const DEVICE: device_id = 0;
+    const DT: DigitLayout = types::F16;
     const D: usize = 1024;
     const DI: usize = 1536;
     const N: usize = 7;
@@ -160,41 +161,37 @@ mod test {
         let vm = TestVM::default();
         let pid = vm.register("linear");
 
-        {
-            let up = vec![0u8; D * DI * 2 * 2];
-            let down = vec![0u8; DI * D * 2];
-            vm.init::<Mlp>(
-                pid,
-                DEVICE,
-                Data {
-                    up: WeightBiasData {
-                        weight: Box::new(up),
-                        bias: None,
-                    },
-                    down: WeightBiasData {
-                        weight: Box::new(down),
-                        bias: None,
-                    },
+        vm.init::<Mlp>(
+            pid,
+            DEVICE,
+            Data {
+                up: WeightBiasData {
+                    weight: test_data(DT, &[D, DI * 2]),
+                    bias: None,
                 },
-            )
-            .forward(
-                pid,
-                DEVICE,
-                &Mlp {
-                    act: Activation::SwiGLU,
-                    dt_w: ty::F16,
-                    di: 1536,
-                    up_bias: false,
-                    down_bias: false,
+                down: WeightBiasData {
+                    weight: test_data(DT, &[DI, D]),
+                    bias: None,
                 },
-                Args {
-                    y: vm.workspace(ty::F16, &[N, D]),
-                    x: vm.workspace(ty::F16, &[N, D]),
-                    scale: 1.,
-                    residual: true,
-                },
-            );
-        }
+            },
+        )
+        .forward(
+            pid,
+            DEVICE,
+            &Mlp {
+                act: Activation::SwiGLU,
+                dt_w: DT,
+                di: 1536,
+                up_bias: false,
+                down_bias: false,
+            },
+            Args {
+                y: vm.workspace(DT, &[N, D]),
+                x: vm.workspace(DT, &[N, D]),
+                scale: 1.,
+                residual: true,
+            },
+        );
 
         vm.unregister(pid)
     }
