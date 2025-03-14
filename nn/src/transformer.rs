@@ -6,6 +6,7 @@ use digit_layout::types;
 use std::borrow::Cow;
 use vm::{Id, Tensor, VirtualMachine};
 
+#[derive(Clone)]
 #[repr(transparent)]
 pub struct Transformer<T>(pub T);
 

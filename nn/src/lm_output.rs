@@ -9,6 +9,7 @@ use vm::{
     op::{MatMul, Rearrange},
 };
 
+#[derive(Clone)]
 pub struct LmOutput {
     pub norm: Normalization,
     pub dt_w: DigitLayout,

@@ -2,6 +2,7 @@ use crate::{Context, Mapping, NuralNetwork};
 use std::ops::Deref;
 use vm::{Tensor, VirtualMachine, op};
 
+#[derive(Clone)]
 pub struct TokenEmbed {
     pub ntok: usize,
 }

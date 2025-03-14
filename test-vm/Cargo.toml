@@ -1,6 +1,6 @@
 [package]
 name = "test-vm"
-version = "0.0.1"
+version.workspace = true
 edition.workspace = true
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 

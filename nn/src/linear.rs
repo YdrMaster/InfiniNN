@@ -5,6 +5,7 @@ use vm::{
     op::{MatMul, Rearrange},
 };
 
+#[derive(Clone)]
 pub struct Linear {
     pub dt_w: DigitLayout,
     pub bias: bool,

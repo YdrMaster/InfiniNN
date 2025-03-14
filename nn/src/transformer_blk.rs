@@ -107,21 +107,6 @@ where
     pub reqs: Vec<Request<'vm, VM>>,
 }
 
-impl<VM> Clone for Args<'_, VM>
-where
-    VM: VirtualMachine + ?Sized,
-{
-    fn clone(&self) -> Self {
-        Self {
-            embed: self.embed.clone(),
-            pos: self.pos.clone(),
-            n_sin: self.n_sin,
-            n_cos: self.n_cos,
-            reqs: self.reqs.clone(),
-        }
-    }
-}
-
 pub struct Data {
     pub pre_norm: WeightBiasData,
     pub self_attn: self_attn::Data,

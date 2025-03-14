@@ -1,11 +1,10 @@
-use std::borrow::Cow;
-
 use crate::{
     Context, Mapping, NuralNetwork, WeightBiasData,
     linear::{self, Linear},
     linear_residual::{self, LinearResidual},
 };
 use digit_layout::DigitLayout;
+use std::borrow::Cow;
 use vm::{
     Id, Tensor, VirtualMachine,
     op::{GeLU, SwiGLU},

@@ -4,6 +4,7 @@ use vm::{
     op::{AttnMask, MatMul, Rearrange, Softmax},
 };
 
+#[derive(Clone)]
 pub struct Attention {
     pub mask: AttnMask,
 }

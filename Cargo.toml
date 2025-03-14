@@ -2,6 +2,7 @@
 members = ["nn", "vm", "test-vm"]
 resolver = "3"
 package.edition = "2024"
+package.version = "0.0.2"
 
 [workspace.dependencies]
 vm.path = "vm"
@@ -9,3 +10,4 @@ nn.path = "nn"
 digit-layout = "0.2"
 ndarray-layout = "0.2"
 patricia_tree = "0.9"
+itertools = "0.14"
