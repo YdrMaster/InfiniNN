@@ -35,8 +35,9 @@ impl TransformerBlk {
                 nh,
                 nkvh,
                 dh,
-                mask: AttnMask::Causal,
                 qkv_bias: false,
+                use_rope: true,
+                mask: AttnMask::Causal,
                 o_bias: false,
             },
             mlp: Mlp {
@@ -81,8 +82,9 @@ impl TransformerBlk {
                 nh,
                 nkvh,
                 dh,
-                mask: AttnMask::Causal,
                 qkv_bias: true,
+                use_rope: false,
+                mask: AttnMask::Causal,
                 o_bias: true,
             },
             mlp: Mlp {
@@ -260,8 +262,10 @@ mod test {
                         weight: test_data(DT, &[(NH + NKVH + NKVH) * DH, D]),
                         bias: None,
                     },
-                    sin: test_data(DT, &[MAX_CTX, DH / 2]),
-                    cos: test_data(DT, &[MAX_CTX, DH / 2]),
+                    rope: Some([
+                        test_data(DT, &[MAX_CTX, DH / 2]),
+                        test_data(DT, &[MAX_CTX, DH / 2]),
+                    ]),
                     output: WeightBiasData {
                         weight: test_data(DT, &[D, NH * DH]),
                         bias: None,

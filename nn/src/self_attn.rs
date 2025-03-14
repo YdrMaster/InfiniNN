@@ -20,8 +20,9 @@ pub struct SelfAttn {
     pub nh: usize,
     pub nkvh: usize,
     pub dh: usize,
-    pub mask: AttnMask,
     pub qkv_bias: bool,
+    pub use_rope: bool,
+    pub mask: AttnMask,
     pub o_bias: bool,
 }
 
@@ -64,8 +65,7 @@ impl Id for Obj {
 
 pub struct Data {
     pub qkv: WeightBiasData,
-    pub sin: Box<dyn Deref<Target = [u8]>>,
-    pub cos: Box<dyn Deref<Target = [u8]>>,
+    pub rope: Option<[Box<dyn Deref<Target = [u8]>>; 2]>,
     pub output: WeightBiasData,
 }
 
@@ -109,17 +109,13 @@ where
     type Sub = Sub;
 
     fn init(data: Self::Data, mut mapping: Mapping<VM, Self>) {
-        let Self::Data {
-            qkv,
-            sin,
-            cos,
-            output,
-        } = data;
+        let Self::Data { qkv, rope, output } = data;
         mapping
-            .map_host(Obj::Sin, sin)
-            .map_host(Obj::Cos, cos)
             .trap::<Linear>(Sub::QkvLinear, qkv)
             .trap::<LinearResidual>(Sub::OutputLinear, output);
+        if let Some([sin, cos]) = rope {
+            mapping.map_host(Obj::Sin, sin).map_host(Obj::Cos, cos);
+        }
     }
 
     fn forward(&self, args: Self::Args<'_>, mut ctx: Context<VM, Self>) {
@@ -128,8 +124,9 @@ where
             nh,
             nkvh,
             dh,
-            mask,
             qkv_bias,
+            use_rope,
+            mask,
             o_bias,
         } = self;
         let Args {
@@ -164,7 +161,7 @@ where
         let mut q = q.transpose(&[1, 0]);
         let mut k = k.transpose(&[1, 0]);
         let v = v.transpose(&[1, 0]);
-        {
+        if use_rope {
             let sin = ctx.get_mapped(Obj::Sin, dt, &[n_sin, dh / 2]);
             let cos = ctx.get_mapped(Obj::Cos, dt, &[n_cos, dh / 2]);
             ctx.rope(&mut q, &pos, &sin, &cos);
@@ -276,8 +273,7 @@ mod test {
                     weight: test_data(DT, &[(NH + NKVH + NKVH) * DH, D]),
                     bias: Some(test_data(DT, &[(NH + NKVH + NKVH) * DH])),
                 },
-                sin: test_data(DT, &[MAX_CTX, DH / 2]),
-                cos: test_data(DT, &[MAX_CTX, DH / 2]),
+                rope: None,
                 output: WeightBiasData {
                     weight: test_data(DT, &[D, NH * DH]),
                     bias: Some(test_data(DT, &[D])),
@@ -292,8 +288,9 @@ mod test {
                 nh: NH,
                 nkvh: NKVH,
                 dh: DH,
-                mask: AttnMask::None,
                 qkv_bias: true,
+                use_rope: false,
+                mask: AttnMask::None,
                 o_bias: true,
             },
             args(&vm),
@@ -315,8 +312,10 @@ mod test {
                     weight: test_data(DT, &[(NH + NKVH + NKVH) * DH, D]),
                     bias: Some(test_data(DT, &[(NH + NKVH + NKVH) * DH])),
                 },
-                sin: test_data(DT, &[MAX_CTX, DH / 2]),
-                cos: test_data(DT, &[MAX_CTX, DH / 2]),
+                rope: Some([
+                    test_data(DT, &[MAX_CTX, DH / 2]),
+                    test_data(DT, &[MAX_CTX, DH / 2]),
+                ]),
                 output: WeightBiasData {
                     weight: test_data(DT, &[D, NH * DH]),
                     bias: None,
@@ -331,8 +330,9 @@ mod test {
                 nh: NH,
                 nkvh: NKVH,
                 dh: DH,
-                mask: AttnMask::Causal,
                 qkv_bias: true,
+                use_rope: true,
+                mask: AttnMask::Causal,
                 o_bias: false,
             },
             args(&vm),
