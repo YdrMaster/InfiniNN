@@ -1,5 +1,5 @@
 [workspace]
-members = ["nn", "vm", "test-vm"]
+members = ["nn", "vm", "test-vm", "vm-impl/cpu"]
 resolver = "3"
 package.edition = "2024"
 package.version = "0.0.2"

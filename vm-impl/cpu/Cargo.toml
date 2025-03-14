@@ -1,0 +1,21 @@
+[package]
+name = "vm-cpu"
+version = "0.0.1"
+edition.workspace = true
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+publish = false
+
+[dependencies]
+vm.workspace = true
+digit-layout.workspace = true
+patricia_tree.workspace = true
+operators = { git = "https://github.com/YdrMaster/operators-rs", rev = "25a1da6" }
+mem-rearrange = "0.1"
+half = "2.4"
+itertools = "0.14"
+
+[dev-dependencies]
+nn.workspace = true
+tokeneer = "0.1"
+ggus = "0.4"
+memmap2 = "0.9"
