@@ -1,10 +1,10 @@
 [package]
-name = "test-vm"
+name = "nural-network-machine"
 version.workspace = true
 edition.workspace = true
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-vm.workspace = true
 digit-layout.workspace = true
-patricia_tree.workspace = true
+ndarray-layout.workspace = true
+downcast-rs = "2.0"
