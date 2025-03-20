@@ -18,16 +18,32 @@ impl Tensor for TestTensor {
         todo!()
     }
 
-    fn unsqueeze(&self, axis: usize) -> Self {
+    fn merge(self, start: usize, len: usize) -> Option<Self> {
         todo!()
     }
 
-    fn tile(&self, axis: usize, tiles: &[usize]) -> Self {
+    fn tile(self, axis: usize, tiles: &[usize]) -> Self {
         todo!()
     }
 
-    fn broadcast(&self, axis: usize, times: usize) -> Self {
+    fn broadcast(self, axis: usize, times: usize) -> Self {
         todo!()
+    }
+
+    fn transpose(self, perm: &[usize]) -> Self {
+        todo!()
+    }
+
+    fn slice(self, axis: usize, start: usize, len: usize) -> Self {
+        todo!()
+    }
+
+    fn index(self, axis: usize, index: usize) -> Self {
+        todo!()
+    }
+
+    fn split(self, axis: usize, parts: &[usize]) -> impl Iterator<Item = Self> + '_ {
+        std::iter::empty()
     }
 }
 

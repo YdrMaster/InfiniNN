@@ -84,9 +84,13 @@ pub trait Tensor: Clone {
 
     fn meta(&self) -> Option<TensorMeta>;
 
-    fn tile(&self, axis: usize, tiles: &[usize]) -> Self;
-    fn unsqueeze(&self, axis: usize) -> Self;
-    fn broadcast(&self, axis: usize, times: usize) -> Self;
+    fn merge(self, start: usize, len: usize) -> Option<Self>;
+    fn tile(self, axis: usize, tiles: &[usize]) -> Self;
+    fn broadcast(self, axis: usize, times: usize) -> Self;
+    fn transpose(self, perm: &[usize]) -> Self;
+    fn slice(self, axis: usize, start: usize, len: usize) -> Self;
+    fn index(self, axis: usize, index: usize) -> Self;
+    fn split(self, axis: usize, parts: &[usize]) -> impl Iterator<Item = Self> + '_;
 }
 
 #[macro_export]
@@ -95,6 +99,17 @@ macro_rules! shape {
         let &$pat = $tensor.meta().unwrap().shape else {
             panic!()
         };
+    };
+}
+
+#[macro_export]
+macro_rules! split {
+    ($tensor:expr => $( $name:ident ),+; [$( $part:expr ),+] @ $axis:expr) => {
+        let parts = [$($part),+];
+        let mut parts = $tensor.split($axis, &parts);
+        $( let $name = parts.next().unwrap(); )+
+        assert!(parts.next().is_none());
+        drop(parts);
     };
 }
 

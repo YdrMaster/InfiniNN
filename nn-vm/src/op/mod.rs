@@ -5,10 +5,13 @@ use crate::VirtualMachine;
 use downcast_rs::{Downcast, impl_downcast};
 use std::{any::Any, fmt};
 
+pub mod add;
+pub mod gelu;
 pub mod gemm;
 pub mod layer_norm;
 pub mod rearrange;
 pub mod rms_norm;
+pub mod swiglu;
 
 pub use access::Access;
 pub use register::OpRegister;

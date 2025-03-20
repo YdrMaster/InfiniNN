@@ -2,6 +2,8 @@ use crate::{Context, VirtualMachine};
 
 pub mod data;
 pub mod linear;
+pub mod linear_residual;
+pub mod mlp;
 pub mod normalization;
 
 pub trait NuralNetwork<VM: VirtualMachine>: Sized {
@@ -83,18 +85,18 @@ macro_rules! forward {
 macro_rules! fetch_data {
     ($child_id:literal: $data:expr; $ctx:expr) => {{
         let tensor = $ctx.tensor(None);
-        forward!(1: None, $data, tensor.clone(); $ctx);
+        forward!($child_id: None, $data, tensor.clone(); $ctx);
         tensor
     }};
 }
 
 #[macro_export]
 macro_rules! call {
-        ($op:ident: $tensors:expr, $args:expr; $ctx:expr) => {
-            $ctx.call($crate::op::$op::NAME, &$tensors, Box::new($args))
-        };
+    ($op:ident: $tensors:expr, $args:expr; $ctx:expr) => {
+        $ctx.call($crate::op::$op::NAME, &$tensors, Box::new($args))
+    };
 
-        ($op:ident: $tensors:expr; $ctx:expr) => {
-            call!($op: $tensors, $crate::op::Empty; $ctx)
-        };
-    }
+    ($op:ident: $tensors:expr; $ctx:expr) => {
+        call!($op: $tensors, $crate::op::Empty; $ctx)
+    };
+}

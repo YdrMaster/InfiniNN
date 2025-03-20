@@ -14,13 +14,9 @@ child!(Linear[1] = bias  : Data);
 pub struct Args<VM: VirtualMachine> {
     pub y: VM::Tensor,
     pub x: VM::Tensor,
-    pub scale: f32,
 }
 
-impl<VM> NuralNetwork<VM> for Linear
-where
-    VM: VirtualMachine,
-{
+impl<VM: VirtualMachine> NuralNetwork<VM> for Linear {
     const NAME: &str = "linear";
     type Meta = ();
     type Args = Args<VM>;
@@ -35,7 +31,7 @@ where
 
     fn forward(&self, args: Self::Args, mut ctx: Context<VM, Self>) {
         let Self { weight, bias } = self;
-        let Args { y, x, scale } = args;
+        let Args { y, x } = args;
 
         let beta = bias.as_ref().map_or(0., |bias| {
             let b = fetch_data!(1: bias; ctx);
@@ -49,6 +45,6 @@ where
         });
 
         let w = fetch_data!(0: weight; ctx);
-        call!(gemm: [&y, &x, &w], Scale { alpha: scale, beta }; ctx)
+        call!(gemm: [&y, &x, &w], Scale { alpha: 1., beta }; ctx)
     }
 }
