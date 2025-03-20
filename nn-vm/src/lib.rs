@@ -41,7 +41,7 @@ pub trait VirtualMachine: 'static + Sized {
     /// 记录一次陷入发生。
     fn record_trap(&self, pos: Pc, child_name: &str, nn_name: &str);
     /// 记录一次算子调用。
-    fn record_call(&self, pos: Pc, op: &str, tensors: &[Self::Tensor], args: &dyn Args);
+    fn record_call(&self, pos: Pc, op: &str, tensors: &[&Self::Tensor], args: &dyn Args);
 
     // 张量管理
 
@@ -81,6 +81,21 @@ pub trait Tensor: Clone {
     ///
     /// 在绑定之前 self 应该不指向实际张量。
     fn assign(&self, other: Self);
+
+    fn meta(&self) -> Option<TensorMeta>;
+
+    fn tile(&self, axis: usize, tiles: &[usize]) -> Self;
+    fn unsqueeze(&self, axis: usize) -> Self;
+    fn broadcast(&self, axis: usize, times: usize) -> Self;
+}
+
+#[macro_export]
+macro_rules! shape {
+    ($tensor:expr => $pat:pat) => {
+        let &$pat = $tensor.meta().unwrap().shape else {
+            panic!()
+        };
+    };
 }
 
 #[cfg(test)]

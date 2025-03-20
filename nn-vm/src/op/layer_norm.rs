@@ -25,7 +25,7 @@ impl<T: LayerNorm<VM>, VM: VirtualMachine> Operator<VM> for LayerNormOp<VM, T> {
         &[Access::W, Access::R, Access::R, Access::R]
     }
 
-    fn launch(&self, tensors: &[VM::Tensor], args: Box<dyn super::Args>) {
+    fn launch(&self, tensors: &[&VM::Tensor], args: Box<dyn super::Args>) {
         let [y, x, scale, bias] = tensors else {
             unreachable!()
         };

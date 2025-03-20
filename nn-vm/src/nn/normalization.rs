@@ -1,11 +1,13 @@
-use super::{WeightBias, WithChild, data::Data};
-use crate::{Context, NuralNetwork, VirtualMachine, call, forward_child, init_child, op::Empty};
+use super::{WeightBias, data::Data};
+use crate::{Context, NuralNetwork, VirtualMachine, call, child, fetch_data, forward, init};
 
-pub struct Normalization {
-    meta: Meta,
-    scale: Data,
-    bias: Option<Data>,
+pub enum Normalization {
+    RmsNorm { scale: Data, epsilon: f32 },
+    LayerNorm { scale: Data, bias: Data },
 }
+
+child!(Normalization[0] = scale: Data);
+child!(Normalization[1] = bias : Data);
 
 #[derive(Clone, Copy)]
 pub enum Meta {
@@ -29,47 +31,32 @@ where
 
     fn init(meta: &Self::Meta, data: Self::Data, mut ctx: Context<VM, Self>) -> Self {
         let Self::Data { weight, bias } = data;
-        let scale = init_child!(0: None, (), weight; ctx);
-        let bias = bias.map(|bias| init_child!(1: None, (), bias; ctx));
-        Self {
-            meta: *meta,
-            scale,
-            bias,
+        match *meta {
+            Meta::RmsNorm { epsilon } => {
+                let scale = init!(0: None, (), weight; ctx);
+                Self::RmsNorm { scale, epsilon }
+            }
+            Meta::LayerNorm => {
+                let scale = init!(0: None, (), weight; ctx);
+                let bias = init!(1: None, (), bias.unwrap(); ctx);
+                Self::LayerNorm { scale, bias }
+            }
         }
     }
 
     fn forward(&self, args: Self::Args, mut ctx: Context<VM, Self>) {
-        let Self { meta, scale, bias } = self;
         let Args { y, x } = args;
 
-        let scale_ = ctx.tensor(None);
-        forward_child!(0: None, scale, scale_.clone(); ctx);
-
-        match *meta {
-            Meta::RmsNorm { epsilon } => {
-                call!(rms_norm: [y, x, scale_], epsilon; ctx)
+        match self {
+            Self::RmsNorm { scale, epsilon } => {
+                let scale = fetch_data!(0: scale; ctx);
+                call!(rms_norm: [&y, &x, &scale], *epsilon; ctx)
             }
-            Meta::LayerNorm => {
-                let bias_ = ctx.tensor(None);
-                forward_child!(1: None, bias.as_ref().unwrap(), bias_.clone(); ctx);
-                call!(layer_norm: [y, x, scale_, bias_], Empty; ctx)
+            Self::LayerNorm { scale, bias } => {
+                let scale = fetch_data!(0: scale; ctx);
+                let bias = fetch_data!(1: bias; ctx);
+                call!(layer_norm: [&y, &x, &scale, &bias]; ctx)
             }
         }
     }
-}
-
-impl<VM> WithChild<VM, 0> for Normalization
-where
-    VM: VirtualMachine,
-{
-    type Type = Data;
-    const NAME: &str = "scale";
-}
-
-impl<VM> WithChild<VM, 1> for Normalization
-where
-    VM: VirtualMachine,
-{
-    type Type = Data;
-    const NAME: &str = "bias";
 }

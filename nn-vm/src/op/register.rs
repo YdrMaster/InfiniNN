@@ -17,7 +17,7 @@ where
         }
     }
 
-    pub fn call(&self, name: &str, tensors: &[VM::Tensor], args: Box<dyn Args>) {
+    pub fn call(&self, name: &str, tensors: &[&VM::Tensor], args: Box<dyn Args>) {
         let vec = self.0.read().unwrap();
         if let Some(op) = vec.get(name) {
             op.launch(tensors, args)

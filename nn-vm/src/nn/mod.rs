@@ -1,6 +1,7 @@
 use crate::{Context, VirtualMachine};
 
 pub mod data;
+pub mod linear;
 pub mod normalization;
 
 pub trait NuralNetwork<VM: VirtualMachine>: Sized {
@@ -50,22 +51,50 @@ pub struct WeightBias<VM: VirtualMachine> {
 }
 
 #[macro_export]
-macro_rules! init_child {
-    ($child_id:literal: $loop_idx:expr, $meta:expr, $data:expr; $ctx:expr) => {
-        <Self as WithChild<VM, $child_id>>::init_child($loop_idx, &$meta, $data, &mut $ctx)
+macro_rules! child {
+    ($ty:ty[$child_id:literal] = $name:ident: $child:ty) => {
+        impl<VM> $crate::WithChild<VM, $child_id> for $ty
+        where
+            VM: $crate::VirtualMachine,
+        {
+            type Type = $child;
+            const NAME: &str = stringify!($name);
+        }
     };
 }
 
 #[macro_export]
-macro_rules! forward_child {
-    ($child_id:literal: $loop_idx:expr, $child:expr, $args:expr; $ctx:expr) => {
-        <Self as WithChild<VM, $child_id>>::forward_child($loop_idx, &$child, $args, &mut $ctx)
+macro_rules! init {
+    ($child_id:literal: $loop_idx:expr, $meta:expr, $data:expr; $ctx:expr) => {
+        <Self as $crate::WithChild<VM, $child_id>>::init_child($loop_idx, &$meta, $data, &mut $ctx)
     };
+}
+
+#[macro_export]
+macro_rules! forward {
+    ($child_id:literal: $loop_idx:expr, $child:expr, $args:expr; $ctx:expr) => {
+        <Self as $crate::WithChild<VM, $child_id>>::forward_child(
+            $loop_idx, &$child, $args, &mut $ctx,
+        )
+    };
+}
+
+#[macro_export]
+macro_rules! fetch_data {
+    ($child_id:literal: $data:expr; $ctx:expr) => {{
+        let tensor = $ctx.tensor(None);
+        forward!(1: None, $data, tensor.clone(); $ctx);
+        tensor
+    }};
 }
 
 #[macro_export]
 macro_rules! call {
-    ($op:ident: $tensors:expr, $args:expr; $ctx:expr) => {
-        $ctx.call($crate::op::$op::NAME, &$tensors, Box::new($args))
-    };
-}
+        ($op:ident: $tensors:expr, $args:expr; $ctx:expr) => {
+            $ctx.call($crate::op::$op::NAME, &$tensors, Box::new($args))
+        };
+
+        ($op:ident: $tensors:expr; $ctx:expr) => {
+            call!($op: $tensors, $crate::op::Empty; $ctx)
+        };
+    }

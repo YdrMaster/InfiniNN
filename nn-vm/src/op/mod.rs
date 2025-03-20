@@ -5,7 +5,9 @@ use crate::VirtualMachine;
 use downcast_rs::{Downcast, impl_downcast};
 use std::{any::Any, fmt};
 
+pub mod gemm;
 pub mod layer_norm;
+pub mod rearrange;
 pub mod rms_norm;
 
 pub use access::Access;
@@ -27,5 +29,5 @@ impl Args for f32 {}
 pub trait Operator<VM: VirtualMachine>: Any {
     fn name(&self) -> String;
     fn args(&self) -> &[Access];
-    fn launch(&self, tensors: &[VM::Tensor], args: Box<dyn Args>);
+    fn launch(&self, tensors: &[&VM::Tensor], args: Box<dyn Args>);
 }

@@ -84,14 +84,14 @@ impl<VM: VirtualMachine, NN: NuralNetwork<VM>> Context<'_, VM, NN> {
         Context {
             pid,
             dev,
-            stack: &mut self.stack,
+            stack: self.stack,
             ops,
             vm,
             _nn: PhantomData,
         }
     }
 
-    pub fn call(&self, op: &str, tensors: &[VM::Tensor], args: Box<dyn Args>) {
+    pub fn call(&self, op: &str, tensors: &[&VM::Tensor], args: Box<dyn Args>) {
         self.vm.record_call(self.pos(), op, tensors, &*args);
         self.ops.get(op).unwrap().launch(tensors, args)
     }

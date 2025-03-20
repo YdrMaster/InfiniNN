@@ -13,6 +13,22 @@ impl Tensor for TestTensor {
     fn assign(&self, other: Self) {
         todo!()
     }
+
+    fn meta(&self) -> Option<TensorMeta> {
+        todo!()
+    }
+
+    fn unsqueeze(&self, axis: usize) -> Self {
+        todo!()
+    }
+
+    fn tile(&self, axis: usize, tiles: &[usize]) -> Self {
+        todo!()
+    }
+
+    fn broadcast(&self, axis: usize, times: usize) -> Self {
+        todo!()
+    }
 }
 
 impl VirtualMachine for TestVM {
@@ -34,7 +50,7 @@ impl VirtualMachine for TestVM {
         todo!()
     }
 
-    fn record_call(&self, pos: Pc, op: &str, tensors: &[Self::Tensor], args: &dyn Args) {
+    fn record_call(&self, pos: Pc, op: &str, tensors: &[&Self::Tensor], args: &dyn Args) {
         todo!()
     }
 

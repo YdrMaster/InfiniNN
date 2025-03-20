@@ -25,7 +25,7 @@ impl<T: RmsNorm<VM>, VM: VirtualMachine> Operator<VM> for RmsNormOp<VM, T> {
         &[Access::W, Access::R, Access::R]
     }
 
-    fn launch(&self, tensors: &[VM::Tensor], args: Box<dyn super::Args>) {
+    fn launch(&self, tensors: &[&VM::Tensor], args: Box<dyn super::Args>) {
         let [y, x, scale] = tensors else {
             unreachable!()
         };
