@@ -1,10 +1,9 @@
-use crate::{Context, VirtualMachine};
+mod ctx;
+mod nn;
 
-pub mod data;
-pub mod linear;
-pub mod linear_residual;
-pub mod mlp;
-pub mod normalization;
+use nnvm::VirtualMachine;
+
+pub use ctx::{Context, Domain};
 
 pub trait NuralNetwork<VM: VirtualMachine>: Sized {
     const NAME: &str;

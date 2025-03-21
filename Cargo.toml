@@ -1,9 +1,9 @@
 [workspace]
-members = ["nn-vm"]
+members = ["vm", "op", "nn"]
 resolver = "3"
 package.edition = "2024"
 package.version = "0.0.2"
 
 [workspace.dependencies]
 digit-layout = "0.2"
-ndarray-layout = "0.2"
+downcast-rs = "2.0"

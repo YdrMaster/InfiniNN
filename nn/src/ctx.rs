@@ -1,18 +1,22 @@
-use crate::{Args, NuralNetwork, Operator, Pc, TensorMeta, VirtualMachine};
+use crate::NuralNetwork;
+use nnvm::{Branch, Pc, TensorMeta, VirtualMachine};
+use op::{Args, Operator};
 use std::{collections::HashMap, marker::PhantomData};
+
+type Op<VM> = Box<dyn Operator<Tensor = <VM as VirtualMachine>::Tensor>>;
 
 pub struct Domain<'ctx, VM: VirtualMachine> {
     pid: u64,
     dev: u64,
     stack: Vec<Branch>,
-    ops: HashMap<String, Box<dyn Operator<VM>>>,
+    ops: HashMap<String, Op<VM>>,
     vm: &'ctx VM,
 }
 
 impl<'ctx, VM: VirtualMachine> Domain<'ctx, VM> {
     pub(crate) fn new<I>(pid: u64, dev: u64, ops: I, vm: &'ctx VM) -> Self
     where
-        I: IntoIterator<Item = Box<dyn Operator<VM>>>,
+        I: IntoIterator<Item = Op<VM>>,
     {
         Self {
             pid,
@@ -49,18 +53,11 @@ impl<VM: VirtualMachine> Drop for Domain<'_, VM> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-pub struct Branch {
-    pub child_id: usize,
-    pub loop_idx: usize,
-}
-
 pub struct Context<'ctx, VM: VirtualMachine, NN: NuralNetwork<VM>> {
     pid: u64,
     dev: u64,
     stack: &'ctx mut Vec<Branch>,
-    ops: &'ctx HashMap<String, Box<dyn Operator<VM>>>,
+    ops: &'ctx HashMap<String, Op<VM>>,
     vm: &'ctx VM,
     _nn: PhantomData<NN>,
 }
@@ -70,7 +67,7 @@ impl<VM: VirtualMachine, NN: NuralNetwork<VM>> Context<'_, VM, NN> {
         &mut self,
         child_id: usize,
         loop_idx: Option<usize>,
-        name: &'static str,
+        _name: &'static str,
     ) -> Context<VM, Sub> {
         let &mut Self {
             pid, dev, ops, vm, ..
@@ -80,7 +77,6 @@ impl<VM: VirtualMachine, NN: NuralNetwork<VM>> Context<'_, VM, NN> {
             child_id,
             loop_idx: loop_idx.unwrap_or(usize::MAX),
         });
-        vm.record_trap(self.pos(), name, Sub::NAME);
         Context {
             pid,
             dev,
@@ -92,7 +88,6 @@ impl<VM: VirtualMachine, NN: NuralNetwork<VM>> Context<'_, VM, NN> {
     }
 
     pub fn call(&self, op: &str, tensors: &[&VM::Tensor], args: Box<dyn Args>) {
-        self.vm.record_call(self.pos(), op, tensors, &*args);
         self.ops.get(op).unwrap().launch(tensors, args)
     }
 
@@ -101,14 +96,14 @@ impl<VM: VirtualMachine, NN: NuralNetwork<VM>> Context<'_, VM, NN> {
     }
 
     pub fn save_data(&self, data: VM::Tensor) {
-        self.vm.save_tensor(self.pos(), data)
+        self.vm.save_tensor(self.pc(), data)
     }
 
     pub fn load_data(&self) -> VM::Tensor {
-        self.vm.load_tensor(self.pos())
+        self.vm.load_tensor(self.pc())
     }
 
-    fn pos(&self) -> Pc {
+    fn pc(&self) -> Pc {
         Pc {
             pid: self.pid,
             dev: self.dev,

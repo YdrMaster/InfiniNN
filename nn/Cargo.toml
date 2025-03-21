@@ -1,10 +1,9 @@
 [package]
-name = "nural-network-machine"
+name = "nural-network"
 version.workspace = true
 edition.workspace = true
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-digit-layout.workspace = true
-ndarray-layout.workspace = true
-downcast-rs = "2.0"
+nnvm.path = "../vm"
+op.path = "../op"

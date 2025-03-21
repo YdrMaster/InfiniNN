@@ -1,0 +1,36 @@
+use crate::{Access, Args, Empty, Operator};
+
+pub trait SwiGLU: 'static + Sized {
+    type Tensor;
+
+    fn new() -> Self;
+    fn launch(&self, out: &Self::Tensor, gate: &Self::Tensor, up: &Self::Tensor);
+
+    fn op() -> Box<dyn Operator<Tensor = Self::Tensor>> {
+        Box::new(SwigluOp(Self::new()))
+    }
+}
+
+pub struct SwigluOp<Op: SwiGLU>(Op);
+
+pub const NAME: &str = "swiglu";
+
+impl<Op: SwiGLU> Operator for SwigluOp<Op> {
+    type Tensor = Op::Tensor;
+
+    fn name(&self) -> String {
+        NAME.to_string()
+    }
+
+    fn args(&self) -> &[Access] {
+        &[Access::W, Access::R, Access::R]
+    }
+
+    fn launch(&self, tensors: &[&Self::Tensor], args: Box<dyn Args>) {
+        let [out, gate, up] = tensors else {
+            unreachable!()
+        };
+        args.downcast_ref::<Empty>().unwrap();
+        self.0.launch(out, gate, up)
+    }
+}

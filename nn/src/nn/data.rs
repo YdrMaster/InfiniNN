@@ -1,4 +1,6 @@
-use super::NuralNetwork;
+use nnvm::Tensor;
+
+use crate::NuralNetwork;
 use crate::{Context, Tensor, VirtualMachine};
 
 pub struct Data;
@@ -9,7 +11,7 @@ where
 {
     const NAME: &str = "data";
     type Meta = ();
-    type Args = VM::Tensor;
+    type Args<'ctx> = Tensor<'ctx, VM>;
     type Data = VM::Tensor;
 
     fn init(_: &Self::Meta, tensor: Self::Data, ctx: Context<VM, Self>) -> Self {

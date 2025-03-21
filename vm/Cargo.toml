@@ -1,0 +1,8 @@
+[package]
+name = "nnvm"
+edition.workspace = true
+version.workspace = true
+authors = ["YdrMaster <ydrml@hotmail.com>"]
+
+[dependencies]
+digit-layout.workspace = true

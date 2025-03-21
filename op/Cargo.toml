@@ -1,0 +1,7 @@
+[package]
+name = "op"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+downcast-rs.workspace = true
