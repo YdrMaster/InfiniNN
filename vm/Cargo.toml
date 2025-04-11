@@ -1,9 +1,0 @@
-[package]
-name = "vm"
-version.workspace = true
-edition.workspace = true
-authors = ["YdrMaster <ydrml@hotmail.com>"]
-
-[dependencies]
-digit-layout.workspace = true
-ndarray-layout.workspace = true
