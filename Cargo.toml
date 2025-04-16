@@ -1,4 +1,4 @@
 [workspace]
-members = ["nnvm", "tensor"]
+members = ["nnvm"]
 resolver = "3"
 package.edition = "2024"

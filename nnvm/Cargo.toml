@@ -5,5 +5,5 @@ edition.workspace = true
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-tensor.path = "../tensor"
-rwrc = { git = "https://github.com/YdrMaster/rwrc", rev = "3cd2fbd" }
+tensor = { git = "https://github.com/YdrMaster/tensor", rev = "66450a9" }
+rwrc = { git = "https://github.com/YdrMaster/rwrc", rev = "765656e" }
