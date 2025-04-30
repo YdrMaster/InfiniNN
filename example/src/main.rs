@@ -4,7 +4,8 @@ mod gguf;
 use blob::Blob;
 use gguf::{GGufModel, map_files};
 use ggus::{GGufMetaMapExt, ggml_quants::digit_layout::types};
-use nn::{Dim, GraphBuilder, Session, TensorMeta, op};
+use indexmap::IndexMap;
+use nn::{Dim, GraphBuilder, Info, NodeRef, Session, TensorMeta, op};
 use std::{rc::Rc, time::Instant};
 use tensor::Tensor;
 
@@ -145,6 +146,41 @@ fn main() {
             Rc::strong_count(tensor.get())
         )
     }
+
+    println!();
+    let mut analyzer = BlobAnalyzer::default();
+    for (i, (topo, node)) in graph.0.topo.iter().zip(graph.0.nodes).enumerate() {
+        if node.op == "empty" {
+            continue;
+        }
+        let NodeRef { inputs, outputs } = topo;
+        for &input in inputs {
+            analyzer.push(i, graph.0.edges[input].0.get(), true)
+        }
+        for output in outputs {
+            analyzer.push(i, graph.0.edges[output].0.get(), false)
+        }
+    }
+
+    for (
+        blob,
+        Record {
+            internal,
+            read,
+            write,
+        },
+    ) in analyzer.0
+    {
+        println!(
+            "{blob:#x} {} {}..{}",
+            if internal { ' ' } else { '*' },
+            write
+                .iter()
+                .min()
+                .map_or("#".to_string(), |x| x.to_string()),
+            read.iter().max().map_or("#".to_string(), |x| x.to_string()),
+        )
+    }
 }
 
 /// 构造 sin cos 表张量，存储到 GGufModel 中
@@ -192,4 +228,31 @@ fn insert_sin_cos(gguf: &mut GGufModel) {
     };
     insert("sin_table", sin);
     insert("cos_table", cos);
+}
+
+#[derive(Default)]
+#[repr(transparent)]
+pub struct BlobAnalyzer(IndexMap<usize, Record>);
+
+struct Record {
+    internal: bool,
+    read: Vec<usize>,
+    write: Vec<usize>,
+}
+
+impl BlobAnalyzer {
+    pub fn push<T>(&mut self, i_node: usize, blob: &Rc<Info<T>>, input: bool) {
+        let internal = matches!(&**blob, Info::Internal(_));
+        let blob = Rc::as_ptr(blob) as usize;
+        let record = self.0.entry(blob).or_insert(Record {
+            internal,
+            read: Vec::new(),
+            write: Vec::new(),
+        });
+        if input {
+            record.read.push(i_node)
+        } else {
+            record.write.push(i_node)
+        }
+    }
 }
