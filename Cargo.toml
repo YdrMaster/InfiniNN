@@ -1,5 +1,5 @@
 [workspace]
-members = ["graph", "nn", "example"]
+members = ["0_common/graph", "0_common/arg", "1_nn", "2_mem", "example"]
 resolver = "3"
 package.edition = "2024"
 

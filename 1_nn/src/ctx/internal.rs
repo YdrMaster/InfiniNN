@@ -1,5 +1,5 @@
-﻿use super::{Edge, External, GraphBuilder, Node, OpLib, Tensor, TensorMeta};
-use crate::{Arg, Dim, Graph, GraphTopo, OpError, TopoNode};
+﻿use super::{GraphBuilder, OpLib, Tensor, TensorMeta};
+use crate::{Arg, Dim, Edge, External, Graph, GraphTopo, Node, OpError, TopoNode};
 use digit_layout::DigitLayout;
 use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc};
 
@@ -48,7 +48,7 @@ impl<T> Internal<T> {
         self.tensors[idx].meta.clone()
     }
 
-    pub fn into_graph(self, global_outputs: Vec<Tensor<T>>) -> Graph<Node, Edge<T>> {
+    pub fn into_graph(self, global_outputs: Vec<Tensor<T>>) -> Graph<T> {
         let Self {
             op_nodes,
             tensors,
@@ -118,7 +118,7 @@ impl<T> Internal<T> {
         for (i, j) in global_outputs.into_iter().enumerate() {
             connections[i] = edge_map[j]
         }
-        Graph {
+        Graph(::graph::Graph {
             topo: unsafe {
                 GraphTopo::from_raw_parts(
                     n_inputs,
@@ -129,7 +129,7 @@ impl<T> Internal<T> {
             },
             nodes: nodes.into(),
             edges: edges.into(),
-        }
+        })
     }
 }
 

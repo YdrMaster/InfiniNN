@@ -5,7 +5,7 @@ use blob::{Blob, Data};
 use gguf::{GGufModel, map_files};
 use ggus::{GGufMetaMapExt, ggml_quants::digit_layout::types};
 use nn::{Dim, Edge, External, GraphBuilder, Session, TensorMeta, op};
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 use tensor::Tensor;
 
 // cargo run --release -- ../TinyStory-5M-v0.0-F32.gguf
@@ -98,7 +98,7 @@ fn main() {
             .collect(),
     };
 
-    let ::nn::Graph { topo, nodes, edges } = GraphBuilder::default()
+    let graph = GraphBuilder::default()
         .register_op("embedding", op::embedding::Embedding)
         .register_op("rms-norm", op::normalization::RmsNorm)
         .register_op("layer-norm", op::normalization::LayerNorm)
@@ -118,19 +118,17 @@ fn main() {
         )
         .unwrap();
 
-    for (i, topo) in topo.iter().enumerate() {
+    let time = Instant::now();
+    const N: usize = 5;
+    let graph = graph.lower(&[("n", N)].into());
+    println!("build graph: {:?}", time.elapsed());
+
+    for (i, topo) in graph.0.topo.iter().enumerate() {
         println!(
             "{i:>3}. {:10} {:40} {:?} <- {:?}",
-            nodes[i].op, nodes[i].name, topo.outputs, topo.inputs
+            graph.0.nodes[i].op, graph.0.nodes[i].name, topo.outputs, topo.inputs
         )
     }
-
-    const N: usize = 5;
-
-    let _edges = edges
-        .into_iter()
-        .map(|edge| fix_n(edge, &gguf, N))
-        .collect::<Box<_>>();
 }
 
 /// 构造 sin cos 表张量，存储到 GGufModel 中
@@ -178,33 +176,4 @@ fn insert_sin_cos(gguf: &mut GGufModel) {
     };
     insert("sin_table", sin);
     insert("cos_table", cos);
-}
-
-pub enum TensorData<'a> {
-    Weight(String, &'a Data<'a>),
-    Normal(usize),
-}
-
-fn fix_n<'a>(edge: Edge<String>, gguf: &'a GGufModel, n: usize) -> Tensor<TensorData<'a>, 3> {
-    let value = HashMap::from([("n", n)]);
-
-    let Edge {
-        meta,
-        external: weight_info,
-    } = edge;
-    let TensorMeta { dt, shape } = meta;
-    let shape = shape
-        .iter()
-        .map(|d| d.substitute(&value))
-        .collect::<Vec<_>>();
-
-    match weight_info {
-        Some(External { name, item }) => {
-            let tensor = &gguf.tensors[&*item];
-            assert_eq!(tensor.dt(), dt, "dt mismatch: {name}");
-            assert_eq!(tensor.shape(), &shape, "shape mismatch: {name}");
-            tensor.as_ref().map(|data| TensorData::Weight(name, data))
-        }
-        None => Tensor::from_dim_slice(dt, &*shape).map(TensorData::Normal),
-    }
 }

@@ -8,12 +8,14 @@ impl Operator for Split {
         let Some(Arg::Dict(args)) = args else {
             return Err(OpError::ArgError);
         };
-        let Some(Arg::Dim(Dim::Constant(axis))) = args.get("axis") else {
+        let Some(Arg::Int(axis)) = args.get("axis") else {
             return Err(OpError::ArgError);
         };
         let Some(Arg::Arr(parts)) = args.get("parts") else {
             return Err(OpError::ArgError);
         };
+
+        let axis = *axis as usize;
         let parts = parts
             .iter()
             .map(|p| {
@@ -29,7 +31,7 @@ impl Operator for Split {
 
         let shape = x.shape();
 
-        if *axis >= shape.len() {
+        if axis >= shape.len() {
             return Err(OpError::ShapeError);
         }
 
@@ -37,13 +39,13 @@ impl Operator for Split {
             .iter()
             .fold(Dim::Constant(0), |acc, p| acc + p.clone());
 
-        let c = shape[*axis].clone() / sum;
+        let c = shape[axis].clone() / sum;
         //TODO 需要检查parts的和是否等于shape[axis]
         Ok(parts
             .into_iter()
             .map(|p| {
                 let mut shape = shape.to_vec();
-                shape[*axis] = p * c.clone();
+                shape[axis] = p * c.clone();
                 TensorMeta::new(x.dt, shape)
             })
             .collect::<Vec<_>>())

@@ -5,9 +5,10 @@ pub struct Concat;
 
 impl Operator for Concat {
     fn infer(&self, inputs: &[TensorMeta], args: Option<&Arg>) -> Result<Vec<TensorMeta>, OpError> {
-        let Some(Arg::Dim(Dim::Constant(axis))) = args else {
+        let Some(Arg::Int(axis)) = args else {
             return Err(OpError::ArgError);
         };
+        let axis = *axis as usize;
 
         // TODO 判定其他维度相等
 
@@ -16,10 +17,10 @@ impl Operator for Concat {
 
         let axis_sum = inputs
             .iter()
-            .map(|t| t.shape[*axis].clone())
+            .map(|t| t.shape[axis].clone())
             .fold(Dim::Constant(0), |acc, d| acc + d);
 
-        origin_shape[*axis] = axis_sum;
+        origin_shape[axis] = axis_sum;
 
         Ok(vec![TensorMeta::new(dt, origin_shape)])
     }

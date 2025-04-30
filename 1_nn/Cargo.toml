@@ -4,6 +4,8 @@ version = "0.0.0"
 edition.workspace = true
 
 [dependencies]
-graph.path = "../graph"
+graph.path = "../0_common/graph"
+arg.path = "../0_common/arg"
+mem.path = "../2_mem"
 digit-layout = "0.3"
 itertools = "0.14"

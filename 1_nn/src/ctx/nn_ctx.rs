@@ -1,4 +1,4 @@
-﻿use super::{Edge, GraphBuilder, Node, Tensor, TensorMeta, internal::GraphContext};
+﻿use super::{GraphBuilder, Tensor, TensorMeta, internal::GraphContext};
 use crate::{Arg, Dim, Graph, NNError, NuralNetwork};
 use digit_layout::DigitLayout;
 use std::{
@@ -11,7 +11,7 @@ impl GraphBuilder {
         &self,
         nn: NN,
         inputs: impl IntoIterator<Item = TensorMeta>,
-    ) -> Result<Graph<Node, Edge<T>>, NNError> {
+    ) -> Result<Graph<T>, NNError> {
         let (context, inputs) = self.new_context(inputs);
         let outputs = trap::<T, NN>("Ω".into(), &context, nn, inputs)?;
         Ok(context.take().into_graph(outputs))
