@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 /// 神经网络标量参数
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Arg {
     Dim(Dim),
     Bool(bool),
@@ -68,6 +68,14 @@ impl Arg {
                     .collect(),
             ),
             primitive => primitive,
+        }
+    }
+
+    pub fn to_usize(&self) -> usize {
+        match self {
+            &Self::Dim(Dim::Constant(dim)) => dim,
+            &Arg::Int(val) => val as _,
+            _ => panic!(),
         }
     }
 }

@@ -12,7 +12,7 @@ use std::{
 ///
 /// ```rust
 /// # use std::collections::HashMap;
-/// # use nn::Dim;
+/// # use arg::Dim;
 /// let a = Dim::var("a");
 /// let b = Dim::var("b");
 /// let _1 = Dim::from(1);

@@ -20,37 +20,26 @@ pub struct Edge<T> {
 impl<T> Graph<T> {
     pub fn lower(self, value: &HashMap<&str, usize>) -> mem::Graph<T> {
         let Self(graph::Graph { topo, nodes, edges }) = self;
-        let nodes = nodes
-            .into_iter()
-            .map(|n| {
-                let Node { name, op, arg } = n;
-                mem::Node {
-                    name,
-                    op,
-                    arg: arg.map(|a| a.substitute(value)),
-                }
+        let nodes = nodes.into_iter().map(|n| {
+            let Node { name, op, arg } = n;
+            mem::Node {
+                name,
+                op,
+                arg: arg.map(|a| a.substitute(value)),
+            }
+        });
+        let edges = edges.into_iter().map(|e| {
+            let Edge { meta, external } = e;
+            let shape = meta
+                .shape
+                .iter()
+                .map(|d| d.substitute(value))
+                .collect::<Vec<_>>();
+            Tensor::from_dim_slice(meta.dt, &shape).map(|size| match external {
+                Some(ext) => mem::Info::External(ext),
+                None => mem::Info::Internal(size),
             })
-            .collect();
-        let edges = edges
-            .into_iter()
-            .map(|e| {
-                let Edge { meta, external } = e;
-                let shape = meta
-                    .shape
-                    .iter()
-                    .map(|d| d.substitute(value))
-                    .collect::<Vec<_>>();
-                mem::Edge(
-                    [
-                        Tensor::from_dim_slice(meta.dt, &shape).map(|size| match external {
-                            Some(ext) => mem::Info::External(ext),
-                            None => mem::Info::Internal(size),
-                        }),
-                    ]
-                    .into(),
-                )
-            })
-            .collect();
-        mem::Graph(graph::Graph { topo, nodes, edges })
+        });
+        mem::Graph::new(topo, nodes, edges)
     }
 }

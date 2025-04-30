@@ -1,11 +1,11 @@
 mod blob;
 mod gguf;
 
-use blob::{Blob, Data};
+use blob::Blob;
 use gguf::{GGufModel, map_files};
 use ggus::{GGufMetaMapExt, ggml_quants::digit_layout::types};
-use nn::{Dim, Edge, External, GraphBuilder, Session, TensorMeta, op};
-use std::{collections::HashMap, time::Instant};
+use nn::{Dim, GraphBuilder, Session, TensorMeta, op};
+use std::{rc::Rc, time::Instant};
 use tensor::Tensor;
 
 // cargo run --release -- ../TinyStory-5M-v0.0-F32.gguf
@@ -59,10 +59,16 @@ fn main() {
                         sin: "sin_table".into(),
                         cos: "cos_table".into(),
                     }),
-                    sessions: [Session {
-                        seq: Dim::var("n"),
-                        cache: None,
-                    }]
+                    sessions: [
+                        Session {
+                            seq: Dim::var("s0"),
+                            cache: None,
+                        },
+                        Session {
+                            seq: Dim::var("s1"),
+                            cache: None,
+                        },
+                    ]
                     .into(),
                     output: ::nn::Linear {
                         dt: types::F32,
@@ -119,14 +125,22 @@ fn main() {
         .unwrap();
 
     let time = Instant::now();
-    const N: usize = 5;
-    let graph = graph.lower(&[("n", N)].into());
+    let graph = graph.lower(&[("n", 5), ("s0", 2), ("s1", 3)].into());
     println!("build graph: {:?}", time.elapsed());
 
     for (i, topo) in graph.0.topo.iter().enumerate() {
         println!(
             "{i:>3}. {:10} {:40} {:?} <- {:?}",
             graph.0.nodes[i].op, graph.0.nodes[i].name, topo.outputs, topo.inputs
+        )
+    }
+    for (i, edge) in graph.0.edges.iter().enumerate() {
+        let tensor = &edge.0;
+        println!(
+            "{i:>3}. {:4} {:?} [{}]",
+            tensor.dt(),
+            tensor.shape(),
+            Rc::strong_count(&tensor.get())
         )
     }
 }
