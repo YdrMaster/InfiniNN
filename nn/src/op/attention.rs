@@ -1,24 +1,23 @@
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
 
-pub struct Rope;
+pub struct Attention;
 
-impl Operator for Rope {
+impl Operator for Attention {
     fn infer(&self, inputs: &[TensorMeta], args: Option<&Arg>) -> Result<Vec<TensorMeta>, OpError> {
-        if args.is_some() {
+        let Some(Arg::Dim(_dh)) = args else {
             return Err(OpError::ArgError);
-        }
+        };
 
         match inputs {
-            [x, pos, sin, cos] => {
-                dims!([_n, _d] = x);
-                dims!([_n] = pos);
-                dims!([_nctx, _dh_2] = sin);
-                dims!([_nctx, _dh_2] = cos);
+            [q, k, v] => {
+                dims!([_n, _dq] = q);
+                dims!([_n, _dk] = k);
+                dims!([_n, _dv] = v);
 
                 // TODO 判断正确性
 
-                Ok(vec![x.clone()])
+                Ok(vec![q.clone()])
             }
             _ => Err(OpError::ShapeError),
         }
