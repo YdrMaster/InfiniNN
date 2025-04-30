@@ -142,7 +142,7 @@ fn main() {
             "{i:>3}. {:4} {:?} [{}]",
             tensor.dt(),
             tensor.shape(),
-            Rc::strong_count(&tensor.get())
+            Rc::strong_count(tensor.get())
         )
     }
 }

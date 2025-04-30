@@ -72,9 +72,9 @@ impl Arg {
     }
 
     pub fn to_usize(&self) -> usize {
-        match self {
-            &Self::Dim(Dim::Constant(dim)) => dim,
-            &Arg::Int(val) => val as _,
+        match *self {
+            Self::Dim(Dim::Constant(dim)) => dim,
+            Arg::Int(val) => val as _,
             _ => panic!(),
         }
     }

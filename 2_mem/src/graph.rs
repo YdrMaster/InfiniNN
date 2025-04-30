@@ -46,13 +46,11 @@ impl<T> Graph<T> {
                         unreachable!()
                     };
                     let axis = arg["axis"].to_usize();
-                    let Arg::Arr(parts) = &arg["parts"] else {
-                        unreachable!()
-                    };
                     // 计算步长变换
                     let mut start = 0;
-                    for (part, output) in zip(parts.iter().map(Arg::to_usize), outputs.clone()) {
+                    for output in outputs {
                         let output = &mut edges[output];
+                        let part = output.0.shape()[axis];
                         // 暂时不支持 output 是外部的，因为外部 output 需要添加 rearrange kernel
                         assert!(matches!(&**output.0.get(), Info::Internal(_)));
                         // 用 slice 实现 split，并替换原来的边
@@ -74,14 +72,11 @@ impl<T> Graph<T> {
                         unreachable!()
                     };
                     let axis = axis as usize;
-                    let parts = inputs
-                        .iter()
-                        .map(|&i| edges[i].0.shape()[axis])
-                        .collect::<Box<_>>();
                     // 计算步长变换
                     let mut start = 0;
-                    for (part, &input) in zip(parts, inputs) {
+                    for &input in inputs {
                         let input = &mut edges[input];
+                        let part = input.0.shape()[axis];
                         // 暂时不支持 input 是外部的，因为外部 input 需要添加 rearrange kernel
                         assert!(matches!(&**input.0.get(), Info::Internal(_)));
                         // 用 slice 实现 split，并替换原来的边
