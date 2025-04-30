@@ -125,7 +125,9 @@ fn main() {
         .unwrap();
 
     let time = Instant::now();
-    let graph = graph.lower(&[("n", 5), ("s0", 2), ("s1", 3)].into());
+    let graph = graph.lower(&[("n", 5), ("s0", 2), ("s1", 3)].into(), |name| {
+        gguf.tensors[&*name].as_ref()
+    });
     println!("build graph: {:?}", time.elapsed());
 
     for (i, topo) in graph.0.topo.iter().enumerate() {

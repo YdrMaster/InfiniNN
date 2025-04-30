@@ -18,7 +18,12 @@ pub struct Edge<T> {
 }
 
 impl<T> Graph<T> {
-    pub fn lower(self, value: &HashMap<&str, usize>) -> mem::Graph<T> {
+    /// 从逻辑连接图下降到存储管理图
+    pub fn lower<U>(
+        self,
+        value: &HashMap<&str, usize>,
+        mut map: impl FnMut(T) -> Tensor<U, 2>,
+    ) -> mem::Graph<U> {
         let Self(graph::Graph { topo, nodes, edges }) = self;
         let nodes = nodes.into_iter().map(|n| {
             let Node { name, op, arg } = n;
@@ -35,10 +40,15 @@ impl<T> Graph<T> {
                 .iter()
                 .map(|d| d.substitute(value))
                 .collect::<Vec<_>>();
-            Tensor::from_dim_slice(meta.dt, &shape).map(|size| match external {
-                Some(ext) => mem::Info::External(ext),
-                None => mem::Info::Internal(size),
-            })
+            match external {
+                Some(External { name, item }) => {
+                    let tensor = map(item);
+                    assert_eq!(tensor.dt(), meta.dt());
+                    assert_eq!(tensor.shape(), shape);
+                    tensor.map(|item| mem::Info::External(External { name, item }))
+                }
+                None => Tensor::from_dim_slice(meta.dt, &shape).map(mem::Info::Internal),
+            }
         });
         mem::Graph::new(topo, nodes, edges)
     }

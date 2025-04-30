@@ -42,7 +42,7 @@ pub struct GGufModel<'a> {
     /// 元数据键值对。
     pub meta_kvs: HashMap<&'a str, GGufMetaKV<'a>>,
     /// 张量。
-    pub tensors: HashMap<&'a str, Tensor<Data<'a>, 3>>,
+    pub tensors: HashMap<&'a str, Tensor<Data<'a>, 2>>,
 }
 
 impl<'a> GGufModel<'a> {
