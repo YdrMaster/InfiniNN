@@ -7,7 +7,10 @@ mod mlp;
 mod normalization;
 mod transformer_blk;
 
-use crate::{OpError, Tensor, ctx::Context};
+use crate::{
+    OpError,
+    ctx::{Context, Tensor},
+};
 
 pub use activation::Activation;
 pub use attention::{Attention, Cache, RoPE, Session};
@@ -31,21 +34,6 @@ pub struct NNError {
     pub name: String,
     pub err: OpError,
 }
-
-// use super::{NNCtx, NNError, NuralNetwork, Tensor};
-// use std::marker::PhantomData;
-// pub struct Network;
-// pub struct Init<T>(PhantomData<T>);
-// impl<T> NuralNetwork<T> for Network {
-//     type Init = Init<T>;
-//     fn launch(
-//         init: Self::Init,
-//         inputs: impl IntoIterator<Item = Tensor<T>>,
-//         mut ctx: NNCtx<T>,
-//     ) -> Result<(NNCtx<T>, Vec<Tensor<T>>), NNError> {
-//         todo!()
-//     }
-// }
 
 pub mod macros {
     macro_rules! destruct {
