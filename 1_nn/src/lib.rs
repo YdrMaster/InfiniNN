@@ -7,7 +7,7 @@ pub mod op;
 
 pub use ::graph::{GraphTopo, NodeRef, TopoNode};
 pub use arg::{Arg, Dim};
-pub use mem::{BlobLifeTime, External, Info, Node, Tensor};
+pub use mem::{BlobLifeTime, Exec, External, Info, Node, Tensor};
 pub use op::{OpError, Operator};
 
 pub use ctx::*;

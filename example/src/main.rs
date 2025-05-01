@@ -4,7 +4,7 @@ mod gguf;
 use blob::Blob;
 use gguf::{GGufModel, map_files};
 use ggus::{GGufMetaMapExt, ggml_quants::digit_layout::types};
-use nn::{Dim, GraphBuilder, Session, TensorMeta, op};
+use nn::{Dim, Exec, GraphBuilder, Node, TensorMeta, op};
 use std::time::Instant;
 use tensor::Tensor;
 
@@ -63,17 +63,6 @@ fn main() {
                         sin: "sin_table".into(),
                         cos: "cos_table".into(),
                     }),
-                    sessions: [
-                        Session {
-                            seq: Dim::var("s0"),
-                            cache: None,
-                        },
-                        Session {
-                            seq: Dim::var("s1"),
-                            cache: None,
-                        },
-                    ]
-                    .into(),
                     output: ::nn::Linear {
                         dt: dt_linear,
                         shape: [d.into(), (nh * dh).into()],
@@ -129,35 +118,45 @@ fn main() {
         .unwrap();
 
     let t1 = Instant::now();
-    let graph = graph.lower(&[("n", 5), ("s0", 2), ("s1", 3)].into(), |name| {
-        gguf.tensors[&*name].as_ref()
-    });
+    let graph = graph.lower(&[("n", 5)].into(), |name| gguf.tensors[&*name].as_ref());
 
     let t2 = Instant::now();
     let mem_range_map = graph.mem_range_map(20 << 30, 512);
+
     let t3 = Instant::now();
+    let mut _workspace = vec![0u8; mem_range_map.range.len()];
+    let exec = graph
+        .lower(
+            |key| unsafe { _workspace.as_ptr().byte_add(mem_range_map.map[&key].start) },
+            |data| data.as_ptr(),
+        )
+        .into_exec();
+
+    let t4 = Instant::now();
     println!(
-        "build graph: {:?} + {:?} + {:?} = {:?}",
+        "\
+build graph: {:?}
+- nn   : {:?}
+- mem  : {:?}
+- alloc: {:?}
+- exec : {:?}",
+        t4 - t0,
         t1 - t0,
         t2 - t1,
         t3 - t2,
-        t3 - t0,
+        t4 - t3,
     );
 
-    for (i, topo) in graph.0.topo.iter().enumerate() {
-        println!(
-            "{i:>3}. {:10} {:40} {:?} <- {:?}",
-            graph.0.nodes[i].op, graph.0.nodes[i].name, topo.outputs, topo.inputs
-        )
-    }
-    println!();
-    println!(
-        "mem_range: {:#x?}, len = {}",
-        mem_range_map.range,
-        mem_range_map.range.len(),
-    );
-    for (blob, range) in mem_range_map.map {
-        println!("{:p} {range:#x?}", blob.as_ptr())
+    for Exec {
+        node,
+        inputs,
+        outputs,
+    } in exec
+    {
+        let Node { op, arg, .. } = node;
+        match op {
+            _ => {}
+        }
     }
 }
 

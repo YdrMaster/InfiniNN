@@ -1,4 +1,11 @@
 [workspace]
-members = ["0_common/graph", "0_common/arg", "1_nn", "2_mem", "example"]
+members = [
+    "0_common/graph",
+    "0_common/arg",
+    "1_nn",
+    "2_mem",
+    "3_exec",
+    "example",
+]
 resolver = "3"
 package.edition = "2024"

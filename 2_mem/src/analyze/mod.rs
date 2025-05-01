@@ -4,6 +4,7 @@ mod life_time;
 mod mem_range;
 
 pub use action::Action;
+pub use key_weak::KeyWeak;
 pub use life_time::BlobLifeTime;
 pub use mem_range::MemRangeMap;
 

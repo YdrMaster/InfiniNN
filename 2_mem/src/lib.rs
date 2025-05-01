@@ -1,20 +1,15 @@
 mod analyze;
+mod op;
 
-pub use analyze::{Action, BlobLifeTime, MemRangeMap, print_lifetime};
-pub use tensor::Tensor;
-
-use arg::Arg;
-use graph::{GraphTopo, NodeRef};
+use graph::GraphTopo;
 use std::{iter::zip, rc::Rc};
+
+pub use analyze::{Action, BlobLifeTime, KeyWeak, MemRangeMap, print_lifetime};
+pub use exec::{Exec, Node};
+pub use tensor::Tensor;
 
 #[repr(transparent)]
 pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
-
-pub struct Node {
-    pub name: String,
-    pub op: String,
-    pub arg: Option<Arg>,
-}
 
 pub struct Edge<T>(pub Tensor<Rc<Info<T>>, 2>);
 
@@ -39,63 +34,29 @@ impl<T> Graph<T> {
             .into_iter()
             .map(|t| Edge(t.map(Rc::new)))
             .collect::<Box<_>>();
-        for (node, NodeRef { inputs, outputs }) in zip(&mut nodes, topo.iter()) {
+        for (node, topo) in zip(&mut nodes, topo.iter()) {
             match &*node.op {
-                "split" => {
-                    // split 应该只有一个输入
-                    let &[input] = inputs else { unreachable!() };
-                    let input: Tensor<_, 2> = edges[input].0.clone();
-                    // 提取属性
-                    let Some(Arg::Dict(arg)) = &node.arg else {
-                        unreachable!()
-                    };
-                    let axis = arg["axis"].to_usize();
-                    // 计算步长变换
-                    let mut start = 0;
-                    for output in outputs {
-                        let output = &mut edges[output];
-                        let part = output.0.shape()[axis];
-                        // 暂时不支持 output 是外部的，因为外部 output 需要添加 rearrange kernel
-                        assert!(matches!(&**output.0.get(), Info::Internal(_)));
-                        // 用 slice 实现 split，并替换原来的边
-                        output.0 = input
-                            .clone()
-                            .transform(|layout| layout.slice(axis, start, 1, part));
-                        start += part
-                    }
-                    // 算子擦除
-                    node.op = "empty".to_string();
-                    node.arg = None
-                }
-                "concat" => {
-                    // concat 应该只有一个输出
-                    assert_eq!(outputs.len(), 1);
-                    let output: Tensor<_, 2> = edges[outputs.start].0.clone();
-                    // 提取属性
-                    let &Some(Arg::Int(axis)) = &node.arg else {
-                        unreachable!()
-                    };
-                    let axis = axis as usize;
-                    // 计算步长变换
-                    let mut start = 0;
-                    for &input in inputs {
-                        let input = &mut edges[input];
-                        let part = input.0.shape()[axis];
-                        // 暂时不支持 input 是外部的，因为外部 input 需要添加 rearrange kernel
-                        assert!(matches!(&**input.0.get(), Info::Internal(_)));
-                        // 用 slice 实现 split，并替换原来的边
-                        input.0 = output
-                            .clone()
-                            .transform(|layout| layout.slice(axis, start, 1, part));
-                        start += part
-                    }
-                    // 算子擦除
-                    node.op = "empty".to_string();
-                    node.arg = None
-                }
+                "split" => op::split(node, topo, &mut edges),
+                "concat" => op::concat(node, topo, &mut edges),
                 _ => {}
             }
         }
         Self(graph::Graph { topo, nodes, edges })
+    }
+
+    pub fn lower<U>(
+        self,
+        mut internal: impl FnMut(KeyWeak<Info<T>>) -> U,
+        mut external: impl FnMut(&T) -> U,
+    ) -> exec::Graph<U> {
+        let Self(graph::Graph { topo, nodes, edges }) = self;
+        let edges = edges
+            .into_iter()
+            .map(|Edge(tensor)| match &**tensor.get() {
+                Info::Internal(_) => tensor.as_ref().map(|_| internal(tensor.get().into())),
+                Info::External(External { item, .. }) => tensor.as_ref().map(|_| external(item)),
+            })
+            .collect();
+        exec::Graph(graph::Graph { topo, nodes, edges })
     }
 }

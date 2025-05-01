@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub use activation::Activation;
-pub use attention::{Attention, Cache, RoPE, Session};
+pub use attention::{Attention, Cache, RoPE};
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
 pub use llama::LLaMA;
