@@ -4,8 +4,7 @@ mod gguf;
 use blob::Blob;
 use gguf::{GGufModel, map_files};
 use ggus::{GGufMetaMapExt, ggml_quants::digit_layout::types};
-use indexmap::IndexMap;
-use nn::{Dim, GraphBuilder, Info, NodeRef, Session, TensorMeta, op};
+use nn::{Dim, GraphBuilder, Info, Session, TensorMeta, op};
 use std::{rc::Rc, time::Instant};
 use tensor::Tensor;
 
@@ -16,7 +15,7 @@ fn main() {
     let mut gguf = GGufModel::read(maps.iter().map(|x| &**x));
     insert_sin_cos(&mut gguf);
 
-    let nvoc = 32000usize;
+    let nvoc = meta![gguf => tokenizer_ggml_tokens].len();
     let nctx = meta![gguf => llm_context_length];
     let nblk = meta![gguf => llm_block_count];
     let d = meta![gguf => llm_embedding_length];
@@ -25,10 +24,14 @@ fn main() {
     let dh = meta![gguf => llm_rope_dimension_count; d / nh];
     let di = meta![gguf => llm_feed_forward_length];
     let epsilon = meta![gguf => llm_attention_layer_norm_rms_epsilon; 1e-5];
+    let dt_embd = gguf.tensors["token_embd.weight"].dt();
+    let dt_norm = gguf.tensors["output_norm.weight"].dt();
+    let dt_linear = gguf.tensors["output.weight"].dt();
 
+    let t0 = Instant::now();
     let llama = ::nn::LLaMA {
         embedding: ::nn::Embedding {
-            dt: types::F32,
+            dt: dt_embd,
             d: d.into(),
             wte: ::nn::Table {
                 row: nvoc.into(),
@@ -42,7 +45,7 @@ fn main() {
                     d: d.into(),
                     epsilon: epsilon as _,
                     items: ::nn::NormType::RmsNorm {
-                        dt: types::F32,
+                        dt: dt_norm,
                         scale: format!("blk.{iblk}.attn_norm.weight"),
                     },
                 },
@@ -50,7 +53,7 @@ fn main() {
                     nh: nh.into(),
                     nkvh: nkvh.into(),
                     qkv: ::nn::Linear {
-                        dt: types::F32,
+                        dt: dt_linear,
                         shape: [((nh + nkvh + nkvh) * dh).into(), d.into()],
                         weight: format!("blk.{iblk}.attn_qkv.weight"),
                         bias: None,
@@ -72,7 +75,7 @@ fn main() {
                     ]
                     .into(),
                     output: ::nn::Linear {
-                        dt: types::F32,
+                        dt: dt_linear,
                         shape: [d.into(), (nh * dh).into()],
                         weight: format!("blk.{iblk}.attn_output.weight"),
                         bias: None,
@@ -82,20 +85,20 @@ fn main() {
                     d: d.into(),
                     epsilon: epsilon as _,
                     items: ::nn::NormType::RmsNorm {
-                        dt: types::F32,
+                        dt: dt_norm,
                         scale: format!("blk.{iblk}.ffn_norm.weight"),
                     },
                 },
                 ffn: ::nn::Mlp {
                     up: ::nn::Linear {
-                        dt: types::F32,
+                        dt: dt_linear,
                         shape: [(di * 2).into(), d.into()],
                         weight: format!("blk.{iblk}.ffn_gate_up.weight"),
                         bias: None,
                     },
                     act: ::nn::Activation::SwiGLU,
                     down: ::nn::Linear {
-                        dt: types::F32,
+                        dt: dt_linear,
                         shape: [d.into(), di.into()],
                         weight: format!("blk.{iblk}.ffn_down.weight"),
                         bias: None,
@@ -125,11 +128,21 @@ fn main() {
         )
         .unwrap();
 
-    let time = Instant::now();
+    let t1 = Instant::now();
     let graph = graph.lower(&[("n", 5), ("s0", 2), ("s1", 3)].into(), |name| {
         gguf.tensors[&*name].as_ref()
     });
-    println!("build graph: {:?}", time.elapsed());
+
+    let t2 = Instant::now();
+    let life = graph.analyze(512);
+    let t3 = Instant::now();
+    println!(
+        "build graph: {:?} + {:?} + {:?} = {:?}",
+        t1 - t0,
+        t2 - t1,
+        t3 - t2,
+        t3 - t0,
+    );
 
     for (i, topo) in graph.0.topo.iter().enumerate() {
         println!(
@@ -146,40 +159,19 @@ fn main() {
             Rc::strong_count(tensor.get())
         )
     }
-
     println!();
-    let mut analyzer = BlobAnalyzer::default();
-    for (i, (topo, node)) in graph.0.topo.iter().zip(graph.0.nodes).enumerate() {
-        if node.op == "empty" {
-            continue;
+    for (i, (weak, life)) in life.into_iter().enumerate() {
+        let Some(&Info::Internal(size)) = weak.upgrade().as_deref() else {
+            panic!()
+        };
+        print!("{i:>3} {size:6} ");
+        for _ in 0..life.start {
+            print!(" ")
         }
-        let NodeRef { inputs, outputs } = topo;
-        for &input in inputs {
-            analyzer.push(i, graph.0.edges[input].0.get(), true)
+        for _ in life.start..=life.end.min(graph.0.nodes.len()) {
+            print!("#")
         }
-        for output in outputs {
-            analyzer.push(i, graph.0.edges[output].0.get(), false)
-        }
-    }
-
-    for (
-        blob,
-        Record {
-            internal,
-            read,
-            write,
-        },
-    ) in analyzer.0
-    {
-        println!(
-            "{blob:#x} {} {}..{}",
-            if internal { ' ' } else { '*' },
-            write
-                .iter()
-                .min()
-                .map_or("#".to_string(), |x| x.to_string()),
-            read.iter().max().map_or("#".to_string(), |x| x.to_string()),
-        )
+        println!()
     }
 }
 
@@ -228,31 +220,4 @@ fn insert_sin_cos(gguf: &mut GGufModel) {
     };
     insert("sin_table", sin);
     insert("cos_table", cos);
-}
-
-#[derive(Default)]
-#[repr(transparent)]
-pub struct BlobAnalyzer(IndexMap<usize, Record>);
-
-struct Record {
-    internal: bool,
-    read: Vec<usize>,
-    write: Vec<usize>,
-}
-
-impl BlobAnalyzer {
-    pub fn push<T>(&mut self, i_node: usize, blob: &Rc<Info<T>>, input: bool) {
-        let internal = matches!(&**blob, Info::Internal(_));
-        let blob = Rc::as_ptr(blob) as usize;
-        let record = self.0.entry(blob).or_insert(Record {
-            internal,
-            read: Vec::new(),
-            write: Vec::new(),
-        });
-        if input {
-            record.read.push(i_node)
-        } else {
-            record.write.push(i_node)
-        }
-    }
 }

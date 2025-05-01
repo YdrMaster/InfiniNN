@@ -1,5 +1,6 @@
 ﻿use super::{Context, Linear, NNError, NuralNetwork, Tensor, macros::*};
 use crate::{Arg, Dim};
+use digit_layout::types;
 use itertools::izip;
 
 pub struct Attention<T> {
@@ -47,7 +48,6 @@ impl<T> NuralNetwork<T> for Attention<T> {
 
         destruct!([x] = ctx.trap("attn-qkv", qkv, [x])?);
         dims!([_, dqkv] = x);
-        let dt = x.dt();
         let dh = dqkv.clone() / (nh.clone() + nkvh.clone() + nkvh.clone());
 
         destruct!(
@@ -68,8 +68,8 @@ impl<T> NuralNetwork<T> for Attention<T> {
         let [q, k] = match rope {
             Some(RoPE { nctx, sin, cos }) => {
                 let shape = [nctx, dh.clone() / 2];
-                let sin = ctx.load_external("rope.sin", dt, shape.clone(), sin);
-                let cos = ctx.load_external("rope.cos", dt, shape.clone(), cos);
+                let sin = ctx.load_external("rope.sin", types::F32, shape.clone(), sin);
+                let cos = ctx.load_external("rope.cos", types::F32, shape.clone(), cos);
                 destruct!(
                     [q_] = ctx.call(
                         "attn-q-rope",

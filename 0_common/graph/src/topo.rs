@@ -54,6 +54,14 @@ impl GraphTopo {
             .fold(self.n_inputs, |acc, n| acc + n.n_local + n.n_outputs)
     }
 
+    pub fn global_inputs(&self) -> Range<usize> {
+        0..self.n_inputs
+    }
+
+    pub fn global_outputs(&self) -> &[usize] {
+        &self.connections[..self.n_outputs]
+    }
+
     pub fn iter(&self) -> Iter {
         Iter {
             topo: self,

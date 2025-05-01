@@ -1,3 +1,4 @@
+mod analyze;
 mod graph;
 
 pub use graph::{Edge, External, Graph, Info, Node};
