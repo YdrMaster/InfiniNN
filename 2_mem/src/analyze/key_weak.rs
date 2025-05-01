@@ -48,4 +48,8 @@ impl<T> KeyWeak<T> {
     pub fn upgrade(&self) -> Option<Rc<T>> {
         self.0.upgrade()
     }
+
+    pub fn as_ptr(&self) -> *const T {
+        self.0.as_ptr()
+    }
 }

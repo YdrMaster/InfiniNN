@@ -4,8 +4,8 @@ mod gguf;
 use blob::Blob;
 use gguf::{GGufModel, map_files};
 use ggus::{GGufMetaMapExt, ggml_quants::digit_layout::types};
-use nn::{Dim, GraphBuilder, Info, Session, TensorMeta, op};
-use std::{rc::Rc, time::Instant};
+use nn::{Dim, GraphBuilder, Session, TensorMeta, op};
+use std::time::Instant;
 use tensor::Tensor;
 
 // cargo run --release -- ../TinyStory-5M-v0.0-F32.gguf
@@ -134,7 +134,7 @@ fn main() {
     });
 
     let t2 = Instant::now();
-    let life = graph.analyze(512);
+    let mem_range_map = graph.mem_range_map(20 << 30, 512);
     let t3 = Instant::now();
     println!(
         "build graph: {:?} + {:?} + {:?} = {:?}",
@@ -150,28 +150,14 @@ fn main() {
             graph.0.nodes[i].op, graph.0.nodes[i].name, topo.outputs, topo.inputs
         )
     }
-    for (i, edge) in graph.0.edges.iter().enumerate() {
-        let tensor = &edge.0;
-        println!(
-            "{i:>3}. {:4} {:?} [{}]",
-            tensor.dt(),
-            tensor.shape(),
-            Rc::strong_count(tensor.get())
-        )
-    }
     println!();
-    for (i, (weak, life)) in life.into_iter().enumerate() {
-        let Some(&Info::Internal(size)) = weak.upgrade().as_deref() else {
-            panic!()
-        };
-        print!("{i:>3} {size:6} ");
-        for _ in 0..life.start {
-            print!(" ")
-        }
-        for _ in life.start..=life.end.min(graph.0.nodes.len()) {
-            print!("#")
-        }
-        println!()
+    println!(
+        "mem_range: {:#x?}, len = {}",
+        mem_range_map.range,
+        mem_range_map.range.len(),
+    );
+    for (blob, range) in mem_range_map.map {
+        println!("{:p} {range:#x?}", blob.as_ptr())
     }
 }
 

@@ -44,11 +44,11 @@ impl GraphTopo {
         self.n_outputs
     }
 
-    pub fn n_nodes(&self) -> usize {
+    pub fn n_node(&self) -> usize {
         self.nodes.len()
     }
 
-    pub fn n_edges(&self) -> usize {
+    pub fn n_edge(&self) -> usize {
         self.nodes
             .iter()
             .fold(self.n_inputs, |acc, n| acc + n.n_local + n.n_outputs)
