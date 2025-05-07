@@ -22,13 +22,15 @@ impl<T> NuralNetwork<T> for TransformerBlk<T> {
             ffn,
         } = self;
         destruct!([x, pos] = inputs);
+        let residual = x.clone();
         let tensors = ctx.trap("attn-norm", attn_norm, [x])?;
         destruct!([x] = tensors);
-        let tensors = ctx.trap("attn", attn, [x, pos])?;
+        let tensors = ctx.trap("attn", attn, [x, pos, residual])?;
         destruct!([x] = tensors);
+        let residual = x.clone();
         let tensors = ctx.trap("ffn-norm", ffn_norm, [x])?;
         destruct!([x] = tensors);
-        let tensors = ctx.trap("ffn", ffn, [x])?;
+        let tensors = ctx.trap("ffn", ffn, [x, residual])?;
 
         Ok((ctx, tensors))
     }

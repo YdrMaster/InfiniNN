@@ -14,8 +14,7 @@ impl<T> NuralNetwork<T> for Mlp<T> {
     ) -> Result<(Context<T>, Vec<Tensor<T>>), NNError> {
         let Self { up, act, down } = self;
 
-        destruct!([x] = inputs);
-        let residual = x.clone();
+        destruct!([x, residual] = inputs);
         destruct!([x] = ctx.trap("ffn-up", up, [x])?);
         destruct!([x] = ctx.trap("activation", act, [x])?);
         destruct!([x] = ctx.trap("ffn-down", down, [x, residual])?);

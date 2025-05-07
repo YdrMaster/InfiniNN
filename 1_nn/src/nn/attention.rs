@@ -27,7 +27,7 @@ impl<T> NuralNetwork<T> for Attention<T> {
         inputs: impl IntoIterator<Item = Tensor<T>>,
         mut ctx: Context<T>,
     ) -> Result<(Context<T>, Vec<Tensor<T>>), NNError> {
-        destruct!([x, pos] = inputs);
+        destruct!([x, pos, residual] = inputs);
 
         let Self {
             nh,
@@ -36,7 +36,6 @@ impl<T> NuralNetwork<T> for Attention<T> {
             rope,
             output,
         } = self;
-        let residual = x.clone();
 
         destruct!([x] = ctx.trap("attn-qkv", qkv, [x])?);
         dims!([_, dqkv] = x);
