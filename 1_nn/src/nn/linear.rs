@@ -22,14 +22,14 @@ impl<T> NuralNetwork<T> for Linear<T> {
             bias,
         } = self;
         let [r, c] = shape;
-        let w = ctx.load_external("weight", dt, [r, c.clone()], weight);
+        let w = ctx.load_external("weight", dt, [r.clone(), c], weight);
 
         let mut inputs = inputs.into_iter();
         let x = inputs.next().unwrap();
         let outputs = match inputs.next() {
             Some(residual) => match bias {
                 Some((dt, bias)) => {
-                    let b = ctx.load_external("bias", dt, [c], bias);
+                    let b = ctx.load_external("bias", dt, [r], bias);
                     ctx.call("", "linear", Some(true.into()), [x, residual, w, b])
                 }
                 None => {
@@ -39,7 +39,7 @@ impl<T> NuralNetwork<T> for Linear<T> {
             },
             None => match bias {
                 Some((dt, bias)) => {
-                    let b = ctx.load_external("bias", dt, [c], bias);
+                    let b = ctx.load_external("bias", dt, [r], bias);
                     ctx.call("", "linear", Some(false.into()), [x, w, b])
                 }
                 None => {
