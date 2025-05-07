@@ -95,6 +95,20 @@ fn main() {
                 },
             })
             .collect(),
+        out_norm: ::nn::Normalization {
+            d: d.into(),
+            epsilon: epsilon as _,
+            items: ::nn::NormType::RmsNorm {
+                dt: dt_norm,
+                scale: "output_norm.weight".into(),
+            },
+        },
+        lm_head: ::nn::Linear {
+            dt: dt_linear,
+            shape: [nvoc.into(), d.into()],
+            weight: "output.weight".into(),
+            bias: None,
+        },
     };
 
     let graph = GraphBuilder::default()
@@ -113,6 +127,7 @@ fn main() {
             [
                 TensorMeta::new(types::U32, [Dim::var("n")]),
                 TensorMeta::new(types::U32, [Dim::var("n")]),
+                TensorMeta::new(types::U32, [1.into()]),
             ],
         )
         .unwrap();

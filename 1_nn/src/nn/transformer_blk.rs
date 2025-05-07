@@ -1,5 +1,7 @@
-﻿use super::{Attention, Context, Mlp, NNError, Normalization, NuralNetwork, Tensor};
-use crate::macros::destruct;
+﻿use super::{
+    Attention, Context, Mlp, NNError, Normalization, NuralNetwork, Tensor, macros::destruct,
+};
+
 pub struct TransformerBlk<T> {
     pub attn_norm: Normalization<T>,
     pub attn: Attention<T>,
