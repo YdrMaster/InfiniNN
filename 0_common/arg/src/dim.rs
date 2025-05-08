@@ -3,7 +3,7 @@
 //! 考虑到形状运算的实际情况，只支持多项式的运算。
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeSet, HashMap, VecDeque},
     fmt::Display,
     ops::{Add, Div, Mul, Neg, Sub},
 };
@@ -50,6 +50,26 @@ impl Dim {
         Operand {
             ty: Type::Negative,
             dim: self,
+        }
+    }
+
+    /// 统计表达式中出现的变量名。
+    pub fn variables(&self) -> BTreeSet<&str> {
+        let mut ans = BTreeSet::new();
+        self.append_variables(&mut ans);
+        ans
+    }
+
+    /// 遍历表达式，递归地将变量名添加到集合。
+    pub fn append_variables<'s>(&'s self, set: &mut BTreeSet<&'s str>) {
+        match self {
+            Self::Constant(_) => {}
+            Self::Variable(name) => {
+                set.insert(&name);
+            }
+            Self::Sum(operands) | Self::Product(operands) => {
+                operands.iter().for_each(|op| op.dim.append_variables(set))
+            }
         }
     }
 
