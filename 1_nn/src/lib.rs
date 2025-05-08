@@ -13,9 +13,11 @@ pub use op::{OpError, Operator};
 pub use ctx::*;
 pub use nn::*;
 
+#[derive(Clone)]
 #[repr(transparent)]
 pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
 
+#[derive(Clone)]
 pub struct Edge<T> {
     pub meta: TensorMeta,
     pub external: Option<External<T>>,

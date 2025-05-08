@@ -1,5 +1,6 @@
 ﻿use std::ops::Range;
 
+#[derive(Clone)]
 pub struct GraphTopo {
     pub(crate) n_inputs: usize,
     pub(crate) n_outputs: usize,
@@ -12,6 +13,7 @@ pub struct NodeRef<'a> {
     pub outputs: Range<usize>,
 }
 
+#[derive(Clone)]
 pub struct TopoNode {
     pub n_local: usize,
     pub n_inputs: usize,

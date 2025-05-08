@@ -18,6 +18,7 @@ pub enum Info<T> {
     External(External<T>),
 }
 
+#[derive(Clone)]
 pub struct External<T> {
     pub name: String,
     pub item: T,

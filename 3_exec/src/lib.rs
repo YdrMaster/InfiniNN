@@ -6,6 +6,7 @@ pub use tensor::Tensor;
 #[repr(transparent)]
 pub struct Graph<T>(pub graph::Graph<Node, Tensor<T, 2>>);
 
+#[derive(Clone)]
 pub struct Node {
     pub name: String,
     pub op: String,
