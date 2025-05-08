@@ -10,10 +10,19 @@ impl Operator for Concat {
         };
         let axis = *axis as usize;
 
-        // TODO 判定其他维度相等
 
         let dt = inputs[0].dt;
         let mut origin_shape = inputs[0].shape.to_vec();
+
+        for i in 0..origin_shape.len() {
+            if i == axis {
+                continue;
+            }
+            if inputs.iter().any(|t| t.shape[i] != origin_shape[i]) {
+                return Err(OpError::ShapeMismatch);
+            }
+        }
+        println!("Concat dimensions match");
 
         let axis_sum = inputs
             .iter()

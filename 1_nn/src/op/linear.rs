@@ -10,40 +10,66 @@ impl Operator for Linear {
         };
         match inputs {
             [x, w] if !*residual => {
-                dims!([m, _k] = x);
-                dims!([n, _k] = w);
+                dims!([m, k_x] = x);
+                dims!([n, k_w] = w);
 
-                // TODO 判断正确性
+                if k_x != k_w {
+                    return Err(OpError::ShapeMismatch);
+                }
 
                 Ok(vec![TensorMeta::new(x.dt, [m.clone(), n.clone()])])
             }
             [x, w, b] if !*residual => {
-                dims!([m, _k] = x);
-                dims!([n, _k] = w);
-                dims!([_n] = b);
+                dims!([m, k_x] = x);
+                dims!([n_w, k_w] = w);
+                dims!([n_b] = b);
 
-                // TODO 判断正确性
+                if k_x != k_w {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if n_w != n_b {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![TensorMeta::new(x.dt, [m.clone(), n.clone()])])
+                Ok(vec![TensorMeta::new(x.dt, [m.clone(), n_w.clone()])])
             }
             [x, residual, w] => {
-                dims!([_m, _k] = x);
-                dims!([_n, _k] = w);
-                dims!([m, n] = residual);
+                dims!([m_x, k_x] = x);
+                dims!([n_w, k_w] = w);
+                dims!([m_r, n_r] = residual);
 
-                // TODO 判断正确性
+                if k_x != k_w {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if m_x != m_r {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if n_r != n_w {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![TensorMeta::new(x.dt, [m.clone(), n.clone()])])
+                Ok(vec![TensorMeta::new(x.dt, [m_x.clone(), n_w.clone()])])
             }
             [x, residual, w, b] => {
-                dims!([_m, _k] = x);
-                dims!([_n, _k] = w);
-                dims!([_n] = b);
-                dims!([m, n] = residual);
+                dims!([m_x, k_x] = x);
+                dims!([n_w, k_w] = w);
+                dims!([n_b] = b);
+                dims!([m_r, n_r] = residual);
 
-                // TODO 判断正确性
+                if k_x != k_w {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if n_w != n_b {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if m_x != m_r {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if n_r != n_w {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![TensorMeta::new(x.dt, [m.clone(), n.clone()])])
+                Ok(vec![TensorMeta::new(x.dt, [m_x.clone(), n_w.clone()])])
             }
             _ => Err(OpError::ShapeError),
         }

@@ -10,10 +10,16 @@ impl Operator for SwiGLU {
         }
 
         destruct!([gate, up] = inputs);
-        dims!([_n, _d] = gate);
-        dims!([_n, _d] = up);
+        dims!([n_gate, d_gate] = gate);
+        dims!([n_up, d_up] = up);
 
-        // TODO 判断正确性
+        if n_gate != n_up {
+            return Err(OpError::ShapeMismatch);
+        }
+
+        if d_gate != d_up {
+            return Err(OpError::ShapeMismatch);
+        }
 
         Ok(vec![gate.clone()])
     }
