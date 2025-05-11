@@ -1,9 +1,8 @@
 ﻿use super::{Context, NNError, NuralNetwork, Tensor, macros::destruct};
-use crate::Dim;
 use digit_layout::DigitLayout;
 
 pub struct Normalization<T> {
-    pub d: Dim,
+    pub d: usize,
     pub epsilon: f64,
     pub items: Type<T>,
 }
@@ -32,7 +31,7 @@ impl<T> NuralNetwork<T> for Normalization<T> {
         let Self { d, epsilon, items } = self;
         let outputs = match items {
             Type::RmsNorm { dt, scale } => {
-                let scale = ctx.load_external("scale", dt, [d], scale);
+                let scale = ctx.load_external("scale", dt, [d.into()], scale);
                 ctx.call("", "rms-norm", Some(epsilon.into()), [x, scale])
             }
             Type::LayerNorm {
@@ -41,8 +40,8 @@ impl<T> NuralNetwork<T> for Normalization<T> {
                 dt_bias,
                 bias,
             } => {
-                let scale = ctx.load_external("scale", dt_scale, [d.clone()], scale);
-                let bias = ctx.load_external("bias", dt_bias, [d], bias);
+                let scale = ctx.load_external("scale", dt_scale, [d.into()], scale);
+                let bias = ctx.load_external("bias", dt_bias, [d.into()], bias);
                 ctx.call("", "layer-norm", Some(epsilon.into()), [x, scale, bias])
             }
         };

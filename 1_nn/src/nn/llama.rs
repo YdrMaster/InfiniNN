@@ -1,6 +1,6 @@
 ﻿use super::{
-    Context, Embedding, Linear, NNError, Normalization, NuralNetwork, Tensor, TransformerBlk,
-    macros::destruct,
+    Context, Distribution, Embedding, Linear, NNError, Normalization, NuralNetwork, Tensor,
+    TransformerBlk, macros::destruct,
 };
 
 pub struct LLaMA<T> {
@@ -8,6 +8,26 @@ pub struct LLaMA<T> {
     pub blks: Box<[TransformerBlk<T>]>,
     pub out_norm: Normalization<T>,
     pub lm_head: Linear<T>,
+}
+
+impl<T> LLaMA<T> {
+    pub fn tensor_parallel(self, dist: Distribution) -> Self {
+        let Self {
+            embedding,
+            blks,
+            out_norm,
+            lm_head,
+        } = self;
+        Self {
+            embedding,
+            blks: blks
+                .into_iter()
+                .map(|blk| blk.tensor_parallel(dist))
+                .collect(),
+            out_norm,
+            lm_head,
+        }
+    }
 }
 
 impl<T> NuralNetwork<T> for LLaMA<T> {

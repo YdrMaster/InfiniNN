@@ -1,9 +1,27 @@
-﻿use super::{Activation, Context, Linear, NNError, NuralNetwork, Tensor, macros::destruct};
+﻿use super::{
+    Activation, Context, Distribution, Linear, NNError, NuralNetwork, TPAction, Tensor,
+    macros::destruct,
+    weight_types::{ColumnTPWeight, FfnGateUp, RowTPWeight},
+};
 
 pub struct Mlp<T> {
     pub up: Linear<T>,
     pub act: Activation,
     pub down: Linear<T>,
+}
+
+impl<T> Mlp<T> {
+    pub fn tensor_parallel(self, dist: Distribution) -> Self {
+        let Self { up, act, down } = self;
+        Self {
+            up: up.parallel(match act {
+                Activation::SwiGLU => TPAction::new(FfnGateUp, dist),
+                Activation::GeLU => TPAction::new(ColumnTPWeight, dist),
+            }),
+            act,
+            down: down.parallel(TPAction::new(RowTPWeight, dist)),
+        }
+    }
 }
 
 impl<T> NuralNetwork<T> for Mlp<T> {

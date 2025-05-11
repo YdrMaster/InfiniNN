@@ -1,24 +1,43 @@
-﻿use super::{Context, Linear, NNError, NuralNetwork, Tensor, macros::*};
-use crate::{Arg, Dim};
+﻿use super::{Context, Distribution, Linear, NNError, NuralNetwork, Tensor, macros::*};
+use crate::{
+    Arg, TPAction,
+    weight_types::{AttnQKV, RowTPWeight},
+};
 use digit_layout::types;
 
 pub struct Attention<T> {
-    pub nh: Dim,
-    pub nkvh: Dim,
+    pub nh: usize,
+    pub nkvh: usize,
     pub qkv: Linear<T>,
     pub rope: Option<RoPE<T>>,
     pub output: Linear<T>,
 }
 
 pub struct RoPE<T> {
-    pub nctx: Dim,
+    pub nctx: usize,
     pub sin: T,
     pub cos: T,
 }
 
-pub struct Cache<T> {
-    pub pos: Dim,
-    pub items: [T; 2],
+impl<T> Attention<T> {
+    pub fn tensor_parallel(self, dist: Distribution) -> Self {
+        let Self {
+            nh,
+            nkvh,
+            qkv,
+            rope,
+            output,
+        } = self;
+        assert_eq!(nh % dist.total, 0);
+        assert_eq!(nkvh % dist.total, 0);
+        Self {
+            nh: nh / dist.total * dist.len,
+            nkvh: nkvh / dist.total * dist.len,
+            qkv: qkv.parallel(TPAction::new(AttnQKV(nh / nkvh), dist)),
+            rope,
+            output: output.parallel(TPAction::new(RowTPWeight, dist)),
+        }
+    }
 }
 
 impl<T> NuralNetwork<T> for Attention<T> {
@@ -49,7 +68,7 @@ impl<T> NuralNetwork<T> for Attention<T> {
                     ("axis".into(), Arg::int(1)),
                     (
                         "parts".into(),
-                        Arg::arr([nh, nkvh.clone(), nkvh.clone()].map(Arg::from))
+                        Arg::arr([Arg::dim(nh), Arg::dim(nkvh), Arg::dim(nkvh)])
                     )
                 ])),
                 [x],
@@ -58,9 +77,9 @@ impl<T> NuralNetwork<T> for Attention<T> {
 
         let [q, k] = match rope {
             Some(RoPE { nctx, sin, cos }) => {
-                let shape = [nctx, dh.clone() / 2];
+                let shape = [nctx.into(), dh.clone() / 2];
                 let sin = ctx.load_external("rope.sin", types::F32, shape.clone(), sin);
-                let cos = ctx.load_external("rope.cos", types::F32, shape.clone(), cos);
+                let cos = ctx.load_external("rope.cos", types::F32, shape, cos);
                 destruct!(
                     [q_] = ctx.call(
                         "attn-q-rope",
@@ -75,7 +94,7 @@ impl<T> NuralNetwork<T> for Attention<T> {
             None => [q, k],
         };
 
-        destruct!([o] = ctx.call("", "attention", Some(dh.clone().into()), [q, k, v,])?);
+        destruct!([o] = ctx.call("", "attention", Some(dh.into()), [q, k, v,])?);
 
         let outputs = ctx.trap("attn-output", output, [o, residual]);
 

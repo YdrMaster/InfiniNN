@@ -1,5 +1,6 @@
 ﻿mod activation;
 mod attention;
+mod distribution;
 mod embedding;
 mod linear;
 mod llama;
@@ -13,7 +14,8 @@ use crate::{
 };
 
 pub use activation::Activation;
-pub use attention::{Attention, Cache, RoPE};
+pub use attention::{Attention, RoPE};
+pub use distribution::{Distribution, TPAction, WeightType, weight_types};
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
 pub use llama::LLaMA;
@@ -21,7 +23,7 @@ pub use mlp::Mlp;
 pub use normalization::{Normalization, Type as NormType};
 pub use transformer_blk::TransformerBlk;
 
-pub trait NuralNetwork<T> {
+pub trait NuralNetwork<T>: Sized {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,
