@@ -110,42 +110,82 @@ pub mod weight_types {
     impl WeightType for AttnQKV {
         impl_wt_eq!();
         fn move_data(&self, dist: Distribution, dst: &mut [u8], src: &Tensor<&[u8], 2>) {
-            match src.layout().ndim() {
-                1 => todo!(),
-                2 => todo!(),
-                _ => unreachable!(),
-            }
+            assert!(src.is_contiguous());
+            let Distribution { start, len, total } = dist;
+
+            let &Self(gqa) = self;
+            assert_eq!(src.shape()[0] % (gqa + 2), 0);
+            assert_eq!(src.shape()[0] / (gqa + 2) % total, 0);
+
+            let src = *src.get();
+            let shard = src.len() / (gqa + 2);
+            let piece = shard / total;
+            dst[..gqa * len * piece]
+                .copy_from_slice(&src[gqa * start * piece..][..gqa * len * piece]);
+            dst[gqa * len * piece..][..len * piece]
+                .copy_from_slice(&src[gqa * shard..][start * piece..][..len * piece]);
+            dst[(gqa + 1) * len * piece..]
+                .copy_from_slice(&src[(gqa + 1) * shard..][start * piece..][..len * piece]);
         }
     }
 
     impl WeightType for FfnGateUp {
         impl_wt_eq!();
         fn move_data(&self, dist: Distribution, dst: &mut [u8], src: &Tensor<&[u8], 2>) {
-            match src.layout().ndim() {
-                1 => todo!(),
-                2 => todo!(),
-                _ => unreachable!(),
-            }
+            assert!(src.is_contiguous());
+            let Distribution { start, len, total } = dist;
+
+            assert_eq!(src.shape()[0] % 2, 0);
+            assert_eq!(src.shape()[0] / 2 % total, 0);
+
+            let src = *src.get();
+            let shard = src.len() / 2;
+            let piece = shard / total;
+            dst[..len * piece].copy_from_slice(&src[start * piece..][..len * piece]);
+            dst[len * piece..].copy_from_slice(&src[shard..][start * piece..][..len * piece]);
         }
     }
 
     impl WeightType for ColumnTPWeight {
         impl_wt_eq!();
         fn move_data(&self, dist: Distribution, dst: &mut [u8], src: &Tensor<&[u8], 2>) {
-            match src.layout().ndim() {
-                1 => todo!(),
-                2 => todo!(),
-                _ => unreachable!(),
-            }
+            assert!(src.is_contiguous());
+            let Distribution { start, len, total } = dist;
+
+            assert_eq!(src.shape()[0] % total, 0);
+
+            let src = *src.get();
+            let piece = src.len() / total;
+            dst.copy_from_slice(&src[start * piece..][..len * piece]);
         }
     }
 
     impl WeightType for RowTPWeight {
         impl_wt_eq!();
         fn move_data(&self, dist: Distribution, dst: &mut [u8], src: &Tensor<&[u8], 2>) {
+            assert!(src.is_contiguous());
+            let Distribution { start, len, total } = dist;
+
             match src.layout().ndim() {
-                1 => todo!(),
-                2 => todo!(),
+                1 => dst.copy_from_slice(src.get()),
+                2 => {
+                    use mem_rearrange::Rearranging;
+
+                    assert_eq!(src.shape()[1] % total, 0);
+                    let piece = src.shape()[1] / total;
+                    let src = src
+                        .as_deref()
+                        .transform(|layout| layout.slice(1, start * piece, 1, len * piece))
+                        .map(|slice| slice.as_ptr());
+                    let mut dst = src.use_info().map(|len| {
+                        assert_eq!(size_of_val(dst), len);
+                        dst.as_mut_ptr()
+                    });
+
+                    let scheme =
+                        Rearranging::new(&dst.layout(), &src.layout(), src.dt().nbytes()).unwrap();
+                    unsafe { scheme.launch(*dst.get_mut(), src.get().byte_offset(src.offset())) }
+                }
                 _ => unreachable!(),
             }
         }

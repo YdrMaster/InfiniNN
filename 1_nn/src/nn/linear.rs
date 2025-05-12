@@ -38,7 +38,7 @@ impl<T> Linear<T> {
         let act = if !tp_action.dist.is_mono() {
             let [r, c] = &mut shape;
             let Distribution { len, total, .. } = tp_action.dist;
-            if tp_action.wt.type_id() == RowTPWeight.type_id() {
+            if (*tp_action.wt).type_id() == RowTPWeight.type_id() {
                 *c = *c / total * len
             } else {
                 *r = *r / total * len
