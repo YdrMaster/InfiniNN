@@ -4,7 +4,7 @@ mod model;
 
 use gguf::{GGufModel, map_files};
 use ggus::ggml_quants::digit_layout::types;
-use nn::{Dim, Exec, GraphBuilder, Node, TensorMeta, op};
+use nn::{Dim, Exec, GraphBuilder, Node, OpInfo, TensorMeta, op};
 use std::{collections::BTreeSet, iter::zip, time::Instant};
 
 // cargo run --release -- ../TinyStory-5M-v0.0-F32.gguf
@@ -71,8 +71,8 @@ fn main() {
     }
     println!();
     // 锁定形状
-    let graph = graph.lower(&[("n_tok", 5), ("n_out", 1)].into(), |name| {
-        gguf.tensors[&*name].as_ref()
+    let graph = graph.lower(&[("n_tok", 5), ("n_out", 1)].into(), |t| {
+        gguf.tensors[&*t.val].as_ref()
     });
     timer.push("fix shape");
     // 分配空间
@@ -83,7 +83,7 @@ fn main() {
     let exec = graph
         .lower(
             |key| unsafe { _workspace.as_ptr().byte_add(mem_range_map.map[&key].start) },
-            |data| data.val.as_ptr(),
+            |data| data.as_ptr(),
         )
         .into_exec();
     timer.push("into exec");
@@ -91,8 +91,11 @@ fn main() {
     println!("{timer}");
 
     for Exec { node, .. } in exec {
-        let Node { op, .. } = node;
-        match op {
+        let Node {
+            value: OpInfo { name, .. },
+            ..
+        } = node;
+        match name {
             _ => {}
         }
     }

@@ -58,7 +58,7 @@ impl<T> NuralNetwork<T> for Attention<T> {
 
         destruct!([x] = ctx.trap("attn-qkv", qkv, [x])?);
         dims!([_, dqkv] = x);
-        let dh = dqkv.clone() / (nh.clone() + nkvh.clone() + nkvh.clone());
+        let dh = dqkv.clone() / (nh + nkvh + nkvh);
 
         destruct!(
             [q, k, v] = ctx.call(

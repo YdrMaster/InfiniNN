@@ -1,15 +1,17 @@
 use arg::Arg;
-use graph::NodeRef;
+use graph::{Named, NodeRef};
 use std::iter::zip;
+
 pub use tensor::Tensor;
 
 #[repr(transparent)]
 pub struct Graph<T>(pub graph::Graph<Node, Tensor<T, 2>>);
 
+pub type Node = Named<Operator>;
+
 #[derive(Clone)]
-pub struct Node {
+pub struct Operator {
     pub name: String,
-    pub op: String,
     pub arg: Option<Arg>,
 }
 

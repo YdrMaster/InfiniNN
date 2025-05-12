@@ -38,20 +38,20 @@ impl<T> Graph<T> {
         // 在分析器中标记全图输入输出
         let mut analyzer = BlobAnalyzer::new(
             topo.n_node(),
-            topo.global_inputs().map(|i| edges[i].0.get()),
-            topo.global_outputs().iter().map(|&i| edges[i].0.get()),
+            topo.global_inputs().map(|i| edges[i].get()),
+            topo.global_outputs().iter().map(|&i| edges[i].get()),
         );
         // 根据算子生成每个 Blob 的生命周期
         for (i, (topo, node)) in zip(topo.iter(), nodes).enumerate() {
-            if node.op == "empty" {
+            if node.value.name == "empty" {
                 continue;
             }
             let NodeRef { inputs, outputs } = topo;
             for &input in inputs {
-                analyzer.push(i, edges[input].0.get())
+                analyzer.push(i, edges[input].get())
             }
             for output in outputs {
-                analyzer.push(i, edges[output].0.get())
+                analyzer.push(i, edges[output].get())
             }
         }
         // 对生命周期排序

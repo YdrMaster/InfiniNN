@@ -65,7 +65,7 @@ impl Dim {
         match self {
             Self::Constant(_) => {}
             Self::Variable(name) => {
-                set.insert(&name);
+                set.insert(name);
             }
             Self::Sum(operands) | Self::Product(operands) => {
                 operands.iter().for_each(|op| op.dim.append_variables(set))

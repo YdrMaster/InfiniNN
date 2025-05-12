@@ -11,7 +11,7 @@ impl GraphBuilder {
         &self,
         nn: NN,
         inputs: impl IntoIterator<Item = TensorMeta>,
-    ) -> Result<Graph<T>, NNError> {
+    ) -> Result<Graph<TPTensor<T>>, NNError> {
         let (context, inputs) = self.new_context(inputs);
         let outputs = trap::<T, NN>("Ω".into(), &context, nn, inputs)?;
         Ok(context.take().into_graph(outputs))

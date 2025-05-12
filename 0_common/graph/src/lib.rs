@@ -8,3 +8,9 @@ pub struct Graph<N, E> {
     pub nodes: Box<[N]>,
     pub edges: Box<[E]>,
 }
+
+#[derive(Clone, Debug)]
+pub struct Named<T> {
+    pub name: String,
+    pub value: T,
+}

@@ -48,7 +48,7 @@ impl<T> Internal<T> {
         self.tensors[idx].meta.clone()
     }
 
-    pub fn into_graph(self, global_outputs: Vec<Tensor<T>>) -> Graph<T> {
+    pub fn into_graph(self, global_outputs: Vec<Tensor<T>>) -> Graph<TPTensor<T>> {
         let Self {
             op_nodes,
             tensors,
@@ -217,8 +217,10 @@ impl<T> GraphContext<T> {
         internal.op_nodes.push(Node_ {
             node: Node {
                 name,
-                op: op.into(),
-                arg,
+                value: mem::Operator {
+                    name: op.into(),
+                    arg,
+                },
             },
             inputs,
             outputs: start..end,

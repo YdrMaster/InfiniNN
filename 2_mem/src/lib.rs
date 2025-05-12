@@ -5,13 +5,13 @@ use graph::GraphTopo;
 use std::{iter::zip, rc::Rc};
 
 pub use analyze::{Action, BlobLifeTime, KeyWeak, MemRangeMap, print_lifetime};
-pub use exec::{Exec, Node};
+pub use exec::{Exec, Node, Operator};
 pub use tensor::Tensor;
 
 #[repr(transparent)]
 pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
 
-pub struct Edge<T>(pub Tensor<Rc<Info<T>>, 2>);
+pub type Edge<T> = Tensor<Rc<Info<T>>, 2>;
 
 pub enum Info<T> {
     Internal(usize),
@@ -33,10 +33,10 @@ impl<T> Graph<T> {
         let mut nodes = nodes.into_iter().collect::<Box<_>>();
         let mut edges = edges
             .into_iter()
-            .map(|t| Edge(t.map(Rc::new)))
+            .map(|t| t.map(Rc::new))
             .collect::<Box<_>>();
         for (node, topo) in zip(&mut nodes, topo.iter()) {
-            match &*node.op {
+            match &*node.value.name {
                 "split" => op::split(node, topo, &mut edges),
                 "concat" => op::concat(node, topo, &mut edges),
                 _ => {}
@@ -53,7 +53,7 @@ impl<T> Graph<T> {
         let Self(graph::Graph { topo, nodes, edges }) = self;
         let edges = edges
             .into_iter()
-            .map(|Edge(tensor)| match &**tensor.get() {
+            .map(|tensor| match &**tensor.get() {
                 Info::Internal(_) => tensor.as_ref().map(|_| internal(tensor.get().into())),
                 Info::External(External { item, .. }) => tensor.as_ref().map(|_| external(item)),
             })

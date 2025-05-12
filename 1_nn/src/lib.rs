@@ -7,7 +7,7 @@ pub mod op;
 
 pub use ::graph::{GraphTopo, NodeRef, TopoNode};
 pub use arg::{Arg, Dim};
-pub use mem::{BlobLifeTime, Exec, External, Info, Node, Tensor};
+pub use mem::{BlobLifeTime, Exec, External, Info, Node, Operator as OpInfo, Tensor};
 pub use op::{OpError, Operator};
 
 pub use ctx::*;
@@ -15,7 +15,7 @@ pub use nn::*;
 
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct Graph<T>(pub graph::Graph<Node, Edge<TPTensor<T>>>);
+pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
 
 #[derive(Clone)]
 pub struct Edge<T> {
@@ -29,14 +29,14 @@ impl<T> Graph<T> {
         self,
         value: &HashMap<&str, usize>,
         mut map: impl FnMut(T) -> Tensor<U, 2>,
-    ) -> mem::Graph<TPTensor<U>> {
+    ) -> mem::Graph<U> {
         let Self(graph::Graph {
             topo,
             mut nodes,
             edges,
         }) = self;
-        for n in &mut nodes {
-            if let Some(arg) = &mut n.arg {
+        for node in &mut nodes {
+            if let Some(arg) = &mut node.value.arg {
                 *arg = std::mem::replace(arg, Arg::Bool(false)).substitute(value)
             }
         }
@@ -49,16 +49,10 @@ impl<T> Graph<T> {
                 .collect::<Vec<_>>();
             match external {
                 Some(External { name, item }) => {
-                    let TPTensor { act, val } = item;
-                    let tensor = map(val);
+                    let tensor = map(item);
                     assert_eq!(tensor.dt(), meta.dt(), "data type mismatch: {name}");
                     assert_eq!(tensor.shape(), shape, "shape mismatch: {name}");
-                    tensor.map(|val| {
-                        mem::Info::External(External {
-                            name,
-                            item: TPTensor { act, val },
-                        })
-                    })
+                    tensor.map(|item| mem::Info::External(External { name, item }))
                 }
                 None => Tensor::from_dim_slice(meta.dt, &shape).map(mem::Info::Internal),
             }

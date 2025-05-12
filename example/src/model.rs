@@ -60,9 +60,7 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                         dt_linear,
                         [(nh + nkvh + nkvh) * dh, d],
                         format!("blk.{iblk}.attn_qkv.weight"),
-                        dt_bias
-                            .clone()
-                            .map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
+                        dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
                     ),
                     rope: Some(::nn::RoPE {
                         nctx,
@@ -77,7 +75,7 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                     ),
                 },
                 ffn_norm: ::nn::Normalization {
-                    d: d,
+                    d,
                     epsilon: epsilon as _,
                     items: ::nn::NormType::RmsNorm {
                         dt: dt_norm,
