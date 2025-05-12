@@ -1,8 +1,9 @@
 ﻿use super::{
-    Attention, Context, Distribution, Mlp, NNError, Normalization, NuralNetwork, Tensor,
+    Attention, Context, Distribution, Mlp, NNError, Normalization, NuralNetwork, TPTensor, Tensor,
     macros::destruct,
 };
 
+#[derive(Clone)]
 pub struct TransformerBlk<T> {
     pub attn_norm: Normalization<T>,
     pub attn: Attention<T>,
@@ -11,17 +12,17 @@ pub struct TransformerBlk<T> {
 }
 
 impl<T> TransformerBlk<T> {
-    pub fn tensor_parallel(self, dist: Distribution) -> Self {
+    pub fn tensor_parallel(self, dist: Distribution) -> TransformerBlk<TPTensor<T>> {
         let Self {
             attn_norm,
             attn,
             ffn_norm,
             ffn,
         } = self;
-        Self {
-            attn_norm,
+        TransformerBlk {
+            attn_norm: attn_norm.tensor_parallel(),
             attn: attn.tensor_parallel(dist),
-            ffn_norm,
+            ffn_norm: ffn_norm.tensor_parallel(),
             ffn: ffn.tensor_parallel(dist),
         }
     }

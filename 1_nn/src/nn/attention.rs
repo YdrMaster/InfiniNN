@@ -1,10 +1,11 @@
-﻿use super::{Context, Distribution, Linear, NNError, NuralNetwork, Tensor, macros::*};
+﻿use super::{Context, Distribution, Linear, NNError, NuralNetwork, TPTensor, Tensor, macros::*};
 use crate::{
     Arg, TPAction,
     weight_types::{AttnQKV, RowTPWeight},
 };
 use digit_layout::types;
 
+#[derive(Clone)]
 pub struct Attention<T> {
     pub nh: usize,
     pub nkvh: usize,
@@ -13,6 +14,7 @@ pub struct Attention<T> {
     pub output: Linear<T>,
 }
 
+#[derive(Clone)]
 pub struct RoPE<T> {
     pub nctx: usize,
     pub sin: T,
@@ -20,7 +22,7 @@ pub struct RoPE<T> {
 }
 
 impl<T> Attention<T> {
-    pub fn tensor_parallel(self, dist: Distribution) -> Self {
+    pub fn tensor_parallel(self, dist: Distribution) -> Attention<TPTensor<T>> {
         let Self {
             nh,
             nkvh,
@@ -30,11 +32,15 @@ impl<T> Attention<T> {
         } = self;
         assert_eq!(nh % dist.total, 0);
         assert_eq!(nkvh % dist.total, 0);
-        Self {
+        Attention {
             nh: nh / dist.total * dist.len,
             nkvh: nkvh / dist.total * dist.len,
             qkv: qkv.parallel(TPAction::new(AttnQKV(nh / nkvh), dist)),
-            rope,
+            rope: rope.map(|RoPE { nctx, sin, cos }| RoPE {
+                nctx,
+                sin: sin.into(),
+                cos: cos.into(),
+            }),
             output: output.parallel(TPAction::new(RowTPWeight, dist)),
         }
     }

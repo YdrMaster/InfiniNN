@@ -1,9 +1,10 @@
 ﻿use super::{
-    Activation, Context, Distribution, Linear, NNError, NuralNetwork, TPAction, Tensor,
+    Activation, Context, Distribution, Linear, NNError, NuralNetwork, TPAction, TPTensor, Tensor,
     macros::destruct,
     weight_types::{ColumnTPWeight, FfnGateUp, RowTPWeight},
 };
 
+#[derive(Clone)]
 pub struct Mlp<T> {
     pub up: Linear<T>,
     pub act: Activation,
@@ -11,9 +12,9 @@ pub struct Mlp<T> {
 }
 
 impl<T> Mlp<T> {
-    pub fn tensor_parallel(self, dist: Distribution) -> Self {
+    pub fn tensor_parallel(self, dist: Distribution) -> Mlp<TPTensor<T>> {
         let Self { up, act, down } = self;
-        Self {
+        Mlp {
             up: up.parallel(match act {
                 Activation::SwiGLU => TPAction::new(FfnGateUp, dist),
                 Activation::GeLU => TPAction::new(ColumnTPWeight, dist),

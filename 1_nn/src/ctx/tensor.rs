@@ -2,10 +2,7 @@
 
 use super::internal::Internal;
 use digit_layout::DigitLayout;
-use std::{
-    cell::RefCell,
-    rc::{Rc, Weak},
-};
+use std::{cell::RefCell, rc::Weak};
 
 /// 计算图层张量
 pub struct Tensor<T> {
@@ -29,7 +26,7 @@ impl<T> Tensor<T> {
     }
 
     #[inline]
-    pub fn shape(&self) -> Rc<[Dim]> {
+    pub fn shape(&self) -> Box<[Dim]> {
         self.meta().shape.clone()
     }
 
@@ -41,7 +38,7 @@ impl<T> Tensor<T> {
 #[derive(Clone)]
 pub struct TensorMeta {
     pub dt: DigitLayout,
-    pub shape: Rc<[Dim]>,
+    pub shape: Box<[Dim]>,
 }
 
 impl TensorMeta {

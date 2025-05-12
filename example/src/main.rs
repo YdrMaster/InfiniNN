@@ -72,7 +72,7 @@ fn main() {
     println!();
     // 锁定形状
     let graph = graph.lower(&[("n_tok", 5), ("n_out", 1)].into(), |t| {
-        gguf.tensors[&*t.val].as_ref()
+        gguf.tensors[&*t].as_ref()
     });
     timer.push("fix shape");
     // 分配空间

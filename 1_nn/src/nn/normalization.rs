@@ -1,12 +1,14 @@
-﻿use super::{Context, NNError, NuralNetwork, Tensor, macros::destruct};
+﻿use super::{Context, NNError, NuralNetwork, TPTensor, Tensor, macros::destruct};
 use digit_layout::DigitLayout;
 
+#[derive(Clone)]
 pub struct Normalization<T> {
     pub d: usize,
     pub epsilon: f64,
     pub items: Type<T>,
 }
 
+#[derive(Clone)]
 pub enum Type<T> {
     RmsNorm {
         dt: DigitLayout,
@@ -18,6 +20,33 @@ pub enum Type<T> {
         dt_bias: DigitLayout,
         bias: T,
     },
+}
+
+impl<T> Normalization<T> {
+    pub fn tensor_parallel(self) -> Normalization<TPTensor<T>> {
+        let Self { d, epsilon, items } = self;
+        Normalization {
+            d,
+            epsilon,
+            items: match items {
+                Type::RmsNorm { dt, scale } => Type::RmsNorm {
+                    dt,
+                    scale: scale.into(),
+                },
+                Type::LayerNorm {
+                    dt_scale,
+                    scale,
+                    dt_bias,
+                    bias,
+                } => Type::LayerNorm {
+                    dt_scale,
+                    scale: scale.into(),
+                    dt_bias,
+                    bias: bias.into(),
+                },
+            },
+        }
+    }
 }
 
 impl<T> NuralNetwork<T> for Normalization<T> {

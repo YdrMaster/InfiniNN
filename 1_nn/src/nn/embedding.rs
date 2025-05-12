@@ -1,6 +1,7 @@
-﻿use super::{Context, NNError, NuralNetwork, Tensor};
+﻿use super::{Context, NNError, NuralNetwork, TPTensor, Tensor};
 use digit_layout::DigitLayout;
 
+#[derive(Clone)]
 pub struct Embedding<T> {
     pub dt: DigitLayout,
     pub d: usize,
@@ -8,9 +9,28 @@ pub struct Embedding<T> {
     pub wpe: Option<Table<T>>,
 }
 
+#[derive(Clone)]
 pub struct Table<T> {
     pub row: usize,
     pub weight: T,
+}
+
+impl<T> Embedding<T> {
+    pub fn tensor_parallel(self) -> Embedding<TPTensor<T>> {
+        let Self { dt, d, wte, wpe } = self;
+        Embedding {
+            dt,
+            d,
+            wte: Table {
+                row: wte.row,
+                weight: wte.weight.into(),
+            },
+            wpe: wpe.map(|Table { row, weight }| Table {
+                row,
+                weight: weight.into(),
+            }),
+        }
+    }
 }
 
 impl<T> NuralNetwork<T> for Embedding<T> {
