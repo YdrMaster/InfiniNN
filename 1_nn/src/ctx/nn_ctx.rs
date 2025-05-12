@@ -1,5 +1,5 @@
 ﻿use super::{GraphBuilder, Tensor, TensorMeta, internal::GraphContext};
-use crate::{Arg, Dim, Graph, NNError, NuralNetwork};
+use crate::{Arg, Dim, Graph, NNError, NuralNetwork, TPTensor};
 use digit_layout::DigitLayout;
 use std::{
     collections::{HashMap, HashSet},
@@ -49,7 +49,7 @@ impl<T> Context<'_, T> {
         name: impl Display,
         dt: DigitLayout,
         shape: impl IntoIterator<Item = Dim>,
-        item: T,
+        item: TPTensor<T>,
     ) -> Tensor<T> {
         let Self {
             path,
@@ -61,7 +61,7 @@ impl<T> Context<'_, T> {
         graph.load_external(format!("{path}.{name}"), dt, shape, item)
     }
 
-    pub fn save_external(&mut self, name: impl Display, tensor: Tensor<T>, item: T) {
+    pub fn save_external(&mut self, name: impl Display, tensor: Tensor<T>, item: TPTensor<T>) {
         let Self {
             path,
             graph,

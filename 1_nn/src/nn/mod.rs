@@ -15,7 +15,7 @@ use crate::{
 
 pub use activation::Activation;
 pub use attention::{Attention, RoPE};
-pub use distribution::{Distribution, TPAction, WeightType, weight_types};
+pub use distribution::{Distribution, TPAction, TPTensor, WeightType, weight_types};
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
 pub use llama::LLaMA;

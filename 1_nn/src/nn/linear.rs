@@ -1,7 +1,8 @@
 ﻿use std::any::Any;
 
 use super::{
-    Context, Distribution, NNError, NuralNetwork, TPAction, Tensor, weight_types::RowTPWeight,
+    Context, Distribution, NNError, NuralNetwork, TPAction, TPTensor, Tensor,
+    weight_types::RowTPWeight,
 };
 use digit_layout::DigitLayout;
 
@@ -73,14 +74,30 @@ impl<T> NuralNetwork<T> for Linear<T> {
                 r = r / total * len
             }
         }
-        let w = ctx.load_external("weight", dt, [r.into(), c.into()], weight);
+        let w = ctx.load_external(
+            "weight",
+            dt,
+            [r.into(), c.into()],
+            TPTensor {
+                act: parallel.clone(),
+                val: weight,
+            },
+        );
 
         let mut inputs = inputs.into_iter();
         let x = inputs.next().unwrap();
         let outputs = match inputs.next() {
             Some(residual) => match bias {
                 Some((dt, bias)) => {
-                    let b = ctx.load_external("bias", dt, [r.into()], bias);
+                    let b = ctx.load_external(
+                        "bias",
+                        dt,
+                        [r.into()],
+                        TPTensor {
+                            act: parallel,
+                            val: bias,
+                        },
+                    );
                     ctx.call("", "linear", Some(true.into()), [x, residual, w, b])
                 }
                 None => {
@@ -90,7 +107,15 @@ impl<T> NuralNetwork<T> for Linear<T> {
             },
             None => match bias {
                 Some((dt, bias)) => {
-                    let b = ctx.load_external("bias", dt, [r.into()], bias);
+                    let b = ctx.load_external(
+                        "bias",
+                        dt,
+                        [r.into()],
+                        TPTensor {
+                            act: parallel,
+                            val: bias,
+                        },
+                    );
                     ctx.call("", "linear", Some(false.into()), [x, w, b])
                 }
                 None => {

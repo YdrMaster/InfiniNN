@@ -15,7 +15,7 @@ pub use nn::*;
 
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
+pub struct Graph<T>(pub graph::Graph<Node, Edge<TPTensor<T>>>);
 
 #[derive(Clone)]
 pub struct Edge<T> {
@@ -29,7 +29,7 @@ impl<T> Graph<T> {
         self,
         value: &HashMap<&str, usize>,
         mut map: impl FnMut(T) -> Tensor<U, 2>,
-    ) -> mem::Graph<U> {
+    ) -> mem::Graph<TPTensor<U>> {
         let Self(graph::Graph {
             topo,
             mut nodes,
@@ -49,10 +49,16 @@ impl<T> Graph<T> {
                 .collect::<Vec<_>>();
             match external {
                 Some(External { name, item }) => {
-                    let tensor = map(item);
+                    let TPTensor { act, val } = item;
+                    let tensor = map(val);
                     assert_eq!(tensor.dt(), meta.dt(), "data type mismatch: {name}");
                     assert_eq!(tensor.shape(), shape, "shape mismatch: {name}");
-                    tensor.map(|item| mem::Info::External(External { name, item }))
+                    tensor.map(|val| {
+                        mem::Info::External(External {
+                            name,
+                            item: TPTensor { act, val },
+                        })
+                    })
                 }
                 None => Tensor::from_dim_slice(meta.dt, &shape).map(mem::Info::Internal),
             }

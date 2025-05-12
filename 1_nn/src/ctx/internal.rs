@@ -1,5 +1,5 @@
 ﻿use super::{GraphBuilder, OpLib, Tensor, TensorMeta};
-use crate::{Arg, Dim, Edge, External, Graph, GraphTopo, Node, OpError, TopoNode};
+use crate::{Arg, Dim, Edge, External, Graph, GraphTopo, Node, OpError, TPTensor, TopoNode};
 use digit_layout::DigitLayout;
 use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc};
 
@@ -39,7 +39,7 @@ impl GraphBuilder {
 pub(super) struct Internal<T> {
     op_lib: Rc<OpLib>,
     op_nodes: Vec<Node_>,
-    tensors: Vec<Edge<T>>,
+    tensors: Vec<Edge<TPTensor<T>>>,
     n_inputs: usize,
 }
 
@@ -156,7 +156,7 @@ impl<T> GraphContext<T> {
         name: String,
         dt: DigitLayout,
         shape: impl IntoIterator<Item = Dim>,
-        item: T,
+        item: TPTensor<T>,
     ) -> Tensor<T> {
         let mut internal = self.0.borrow_mut();
 
@@ -168,7 +168,7 @@ impl<T> GraphContext<T> {
         self.tensor(idx)
     }
 
-    pub fn save_external(&self, name: String, tensor: Tensor<T>, item: T) {
+    pub fn save_external(&self, name: String, tensor: Tensor<T>, item: TPTensor<T>) {
         let mut internal = self.0.borrow_mut();
 
         assert!(

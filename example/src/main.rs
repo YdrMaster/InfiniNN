@@ -83,7 +83,7 @@ fn main() {
     let exec = graph
         .lower(
             |key| unsafe { _workspace.as_ptr().byte_add(mem_range_map.map[&key].start) },
-            |data| data.as_ptr(),
+            |data| data.val.as_ptr(),
         )
         .into_exec();
     timer.push("into exec");

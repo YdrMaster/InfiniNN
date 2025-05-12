@@ -28,6 +28,21 @@ impl Distribution {
 }
 
 #[derive(Clone)]
+pub struct TPTensor<T> {
+    pub act: Option<TPAction>,
+    pub val: T,
+}
+
+impl<T> From<T> for TPTensor<T> {
+    fn from(value: T) -> Self {
+        Self {
+            act: None,
+            val: value,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct TPAction {
     pub wt: Rc<dyn WeightType>,
     pub dist: Distribution,
