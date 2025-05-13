@@ -11,6 +11,7 @@ pub struct Linear<T> {
     pub shape: [usize; 2],
     pub weight: T,
     pub bias: Option<(DigitLayout, T)>,
+    pub allow_residual: bool,
 }
 
 impl<T> Linear<T> {
@@ -25,6 +26,7 @@ impl<T> Linear<T> {
             shape,
             weight,
             bias,
+            allow_residual: true,
         }
     }
 
@@ -34,18 +36,19 @@ impl<T> Linear<T> {
             mut shape,
             weight,
             bias,
+            allow_residual,
         } = self;
-        let act = if !tp_action.dist.is_mono() {
+        let (act, allow_residual) = if !tp_action.dist.is_mono() {
             let [r, c] = &mut shape;
-            let Distribution { len, total, .. } = tp_action.dist;
+            let Distribution { start, len, total } = tp_action.dist;
             if (*tp_action.wt).type_id() == RowTPWeight.type_id() {
                 *c = *c / total * len
             } else {
                 *r = *r / total * len
             }
-            Some(tp_action)
+            (Some(tp_action), allow_residual && start == 0)
         } else {
-            None
+            (None, allow_residual)
         };
         Linear {
             dt,
@@ -54,7 +57,8 @@ impl<T> Linear<T> {
                 act: act.clone(),
                 val: weight,
             },
-            bias: bias.map(|(dt, t)| (dt, TPTensor { act, val: t })),
+            bias: bias.map(|(dt, val)| (dt, TPTensor { act, val })),
+            allow_residual,
         }
     }
 }
@@ -70,6 +74,7 @@ impl<T> NuralNetwork<T> for Linear<T> {
             shape,
             weight,
             bias,
+            allow_residual,
         } = self;
         let [r, c] = shape;
         let w = ctx.load_external("weight", dt, [r.into(), c.into()], weight);
@@ -77,7 +82,7 @@ impl<T> NuralNetwork<T> for Linear<T> {
         let mut inputs = inputs.into_iter();
         let x = inputs.next().unwrap();
         let outputs = match inputs.next() {
-            Some(residual) => match bias {
+            Some(residual) if allow_residual => match bias {
                 Some((dt, bias)) => {
                     let b = ctx.load_external("bias", dt, [r.into()], bias);
                     ctx.call("", "linear", Some(true.into()), [x, residual, w, b])
@@ -87,7 +92,7 @@ impl<T> NuralNetwork<T> for Linear<T> {
                     ctx.call("", "linear", Some(true.into()), [x, residual, w])
                 }
             },
-            None => match bias {
+            _ => match bias {
                 Some((dt, bias)) => {
                     let b = ctx.load_external("bias", dt, [r.into()], bias);
                     ctx.call("", "linear", Some(false.into()), [x, w, b])
