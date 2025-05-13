@@ -15,6 +15,7 @@ pub struct Linear<T> {
 }
 
 impl<T> Linear<T> {
+    #[inline]
     pub const fn new(
         dt: DigitLayout,
         shape: [usize; 2],

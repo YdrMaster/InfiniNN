@@ -44,59 +44,61 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
             wpe: None,
         },
         blks: (0..nblk)
-            .map(|iblk| ::nn::TransformerBlk {
-                attn_norm: ::nn::Normalization {
-                    d,
-                    epsilon: epsilon as _,
-                    items: ::nn::NormType::RmsNorm {
-                        dt: dt_norm,
-                        scale: format!("blk.{iblk}.attn_norm.weight"),
+            .map(|iblk| {
+                ::nn::TransformerBlk::new(
+                    ::nn::Normalization {
+                        d,
+                        epsilon: epsilon as _,
+                        items: ::nn::NormType::RmsNorm {
+                            dt: dt_norm,
+                            scale: format!("blk.{iblk}.attn_norm.weight"),
+                        },
                     },
-                },
-                attn: ::nn::Attention {
-                    nh,
-                    nkvh,
-                    qkv: ::nn::Linear::new(
-                        dt_linear,
-                        [(nh + nkvh + nkvh) * dh, d],
-                        format!("blk.{iblk}.attn_qkv.weight"),
-                        dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
-                    ),
-                    rope: Some(::nn::RoPE {
-                        nctx,
-                        sin: "sin_table".into(),
-                        cos: "cos_table".into(),
-                    }),
-                    output: ::nn::Linear::new(
-                        dt_linear,
-                        [d, nh * dh],
-                        format!("blk.{iblk}.attn_output.weight"),
-                        None,
-                    ),
-                },
-                ffn_norm: ::nn::Normalization {
-                    d,
-                    epsilon: epsilon as _,
-                    items: ::nn::NormType::RmsNorm {
-                        dt: dt_norm,
-                        scale: format!("blk.{iblk}.ffn_norm.weight"),
+                    ::nn::Attention {
+                        nh,
+                        nkvh,
+                        qkv: ::nn::Linear::new(
+                            dt_linear,
+                            [(nh + nkvh + nkvh) * dh, d],
+                            format!("blk.{iblk}.attn_qkv.weight"),
+                            dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
+                        ),
+                        rope: Some(::nn::RoPE {
+                            nctx,
+                            sin: "sin_table".into(),
+                            cos: "cos_table".into(),
+                        }),
+                        output: ::nn::Linear::new(
+                            dt_linear,
+                            [d, nh * dh],
+                            format!("blk.{iblk}.attn_output.weight"),
+                            None,
+                        ),
                     },
-                },
-                ffn: ::nn::Mlp {
-                    up: ::nn::Linear::new(
-                        dt_linear,
-                        [di * 2, d],
-                        format!("blk.{iblk}.ffn_gate_up.weight"),
-                        None,
-                    ),
-                    act: ::nn::Activation::SwiGLU,
-                    down: ::nn::Linear::new(
-                        dt_linear,
-                        [d, di],
-                        format!("blk.{iblk}.ffn_down.weight"),
-                        None,
-                    ),
-                },
+                    ::nn::Normalization {
+                        d,
+                        epsilon: epsilon as _,
+                        items: ::nn::NormType::RmsNorm {
+                            dt: dt_norm,
+                            scale: format!("blk.{iblk}.ffn_norm.weight"),
+                        },
+                    },
+                    ::nn::Mlp {
+                        up: ::nn::Linear::new(
+                            dt_linear,
+                            [di * 2, d],
+                            format!("blk.{iblk}.ffn_gate_up.weight"),
+                            None,
+                        ),
+                        act: ::nn::Activation::SwiGLU,
+                        down: ::nn::Linear::new(
+                            dt_linear,
+                            [d, di],
+                            format!("blk.{iblk}.ffn_down.weight"),
+                            None,
+                        ),
+                    },
+                )
             })
             .collect(),
         out_norm: ::nn::Normalization {

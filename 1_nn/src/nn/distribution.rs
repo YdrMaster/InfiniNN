@@ -211,7 +211,7 @@ pub mod weight_types {
 
                     let scheme =
                         Rearranging::new(&dst.layout(), &src.layout(), src.dt().nbytes()).unwrap();
-                    unsafe { scheme.launch(*dst.get_mut(), src.get().byte_offset(src.offset())) }
+                    unsafe { scheme.launch(*dst.get_mut(), *src.get()) }
                 }
                 _ => unreachable!(),
             }

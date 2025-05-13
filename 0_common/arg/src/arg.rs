@@ -8,6 +8,7 @@ pub enum Arg {
     Bool(bool),
     Int(u64),
     Float(f64),
+    Str(&'static str),
     Arr(Box<[Self]>),
     Dict(HashMap<String, Self>),
 }
@@ -29,6 +30,7 @@ impl_from! {
     bool => Bool
     u64  => Int
     f64  => Float
+    &'static str           => Str
         Box<       [Self]> => Arr
     HashMap<String, Self > => Dict
 }
