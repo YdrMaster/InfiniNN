@@ -74,7 +74,8 @@ impl Hash for TPAction {
 
 pub trait WeightType: Any {
     fn move_data(&self, dist: Distribution, dst: &mut [u8], src: &Tensor<&[u8], 2>);
-    fn check_eq(&self, other: &dyn Any) -> bool;
+    fn split_shape(&self, dist: Distribution, shape: &[usize]) -> Box<[usize]>;
+    fn check_eq(&self, other: &dyn WeightType) -> bool;
 }
 
 pub mod weight_types {
@@ -98,11 +99,10 @@ pub mod weight_types {
 
     macro_rules! impl_wt_eq {
         () => {
-            fn check_eq(&self, other: &dyn Any) -> bool {
-                match other.downcast_ref::<Self>() {
-                    Some(other) => self.eq(other),
-                    _ => false,
-                }
+            fn check_eq(&self, other: &dyn WeightType) -> bool {
+                (other as &dyn Any)
+                    .downcast_ref::<Self>()
+                    .is_some_and(|other| self.eq(other))
             }
         };
     }
@@ -127,6 +127,15 @@ pub mod weight_types {
             dst[(gqa + 1) * len * piece..]
                 .copy_from_slice(&src[(gqa + 1) * shard..][start * piece..][..len * piece]);
         }
+
+        fn split_shape(&self, dist: Distribution, shape: &[usize]) -> Box<[usize]> {
+            let Distribution { len, total, .. } = dist;
+            match *shape {
+                [r] => [r / total * len].into(),
+                [r, c] => [r / total * len, c].into(),
+                [..] => unreachable!(),
+            }
+        }
     }
 
     impl WeightType for FfnGateUp {
@@ -144,6 +153,15 @@ pub mod weight_types {
             dst[..len * piece].copy_from_slice(&src[start * piece..][..len * piece]);
             dst[len * piece..].copy_from_slice(&src[shard..][start * piece..][..len * piece]);
         }
+
+        fn split_shape(&self, dist: Distribution, shape: &[usize]) -> Box<[usize]> {
+            let Distribution { len, total, .. } = dist;
+            match *shape {
+                [r] => [r / total * len].into(),
+                [r, c] => [r / total * len, c].into(),
+                [..] => unreachable!(),
+            }
+        }
     }
 
     impl WeightType for ColumnTPWeight {
@@ -157,6 +175,15 @@ pub mod weight_types {
             let src = *src.get();
             let piece = src.len() / total;
             dst.copy_from_slice(&src[start * piece..][..len * piece]);
+        }
+
+        fn split_shape(&self, dist: Distribution, shape: &[usize]) -> Box<[usize]> {
+            let Distribution { len, total, .. } = dist;
+            match *shape {
+                [r] => [r / total * len].into(),
+                [r, c] => [r / total * len, c].into(),
+                [..] => unreachable!(),
+            }
         }
     }
 
@@ -187,6 +214,15 @@ pub mod weight_types {
                     unsafe { scheme.launch(*dst.get_mut(), src.get().byte_offset(src.offset())) }
                 }
                 _ => unreachable!(),
+            }
+        }
+
+        fn split_shape(&self, dist: Distribution, shape: &[usize]) -> Box<[usize]> {
+            let Distribution { len, total, .. } = dist;
+            match *shape {
+                [r] => [r].into(),
+                [r, c] => [r, c / total * len].into(),
+                [..] => unreachable!(),
             }
         }
     }
