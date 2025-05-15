@@ -1,7 +1,7 @@
 ﻿use super::{GraphBuilder, OpLib, Tensor, TensorMeta};
-use crate::{Arg, Dim, Edge, External, Graph, GraphTopo, Node, OpError, TopoNode};
-use digit_layout::DigitLayout;
+use crate::{Arg, Dim, Edge, External, GraphTopo, NNGraph, Node, TopoNode, op::OpError};
 use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc};
+use tensor::digit_layout::DigitLayout;
 
 pub(super) struct GraphContext<T>(Rc<RefCell<Internal<T>>>);
 
@@ -48,7 +48,7 @@ impl<T> Internal<T> {
         self.tensors[idx].meta.clone()
     }
 
-    pub fn into_graph(self, global_outputs: Vec<Tensor<T>>) -> Graph<T> {
+    pub fn into_graph(self, global_outputs: Vec<Tensor<T>>) -> NNGraph<T> {
         let Self {
             op_nodes,
             tensors,
@@ -118,7 +118,7 @@ impl<T> Internal<T> {
         for (i, j) in global_outputs.into_iter().enumerate() {
             connections[i] = edge_map[j]
         }
-        Graph(::graph::Graph {
+        NNGraph(::graph::Graph {
             topo: unsafe {
                 GraphTopo::from_raw_parts(
                     n_inputs,

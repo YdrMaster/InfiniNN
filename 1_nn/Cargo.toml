@@ -8,6 +8,6 @@ authors = ["YdrMaster <ydrml@hotmail.com>"]
 graph.path = "../0_common/graph"
 arg.path = "../0_common/arg"
 mem.path = "../2_mem"
-digit-layout = "0.3"
+tensor.workspace = true
 itertools = "0.14"
 mem-rearrange = "0.1"

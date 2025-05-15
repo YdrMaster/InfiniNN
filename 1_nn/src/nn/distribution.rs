@@ -1,5 +1,5 @@
-﻿use mem::Tensor;
-use std::{any::Any, hash::Hash, rc::Rc};
+﻿use std::{any::Any, hash::Hash, rc::Rc};
+use tensor::Tensor;
 
 /// 分布式切分方式
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

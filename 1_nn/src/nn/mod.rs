@@ -10,8 +10,8 @@ mod output_head;
 mod transformer_blk;
 
 use crate::{
-    OpError,
     ctx::{Context, Tensor},
+    op::OpError,
 };
 
 pub use activation::Activation;

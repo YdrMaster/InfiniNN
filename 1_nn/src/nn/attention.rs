@@ -3,7 +3,7 @@ use crate::{
     Arg, TPAction,
     weight_types::{AttnQKV, RowTPWeight},
 };
-use digit_layout::types;
+use tensor::digit_layout::types;
 
 #[derive(Clone)]
 pub struct Attention<T> {

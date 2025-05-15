@@ -1,5 +1,5 @@
 ﻿use super::{Context, NNError, NuralNetwork, TPTensor, Tensor, macros::destruct};
-use digit_layout::DigitLayout;
+use tensor::digit_layout::DigitLayout;
 
 #[derive(Clone)]
 pub struct Normalization<T> {

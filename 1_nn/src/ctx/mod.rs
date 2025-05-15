@@ -2,7 +2,7 @@
 mod nn_ctx;
 mod tensor;
 
-use crate::Operator;
+use crate::op::Operator;
 use std::{borrow::Borrow, cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
 pub use nn_ctx::Context;

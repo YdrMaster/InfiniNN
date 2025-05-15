@@ -5,17 +5,17 @@ use std::collections::HashMap;
 
 pub mod op;
 
-pub use ::graph::{GraphTopo, NodeRef, TopoNode};
 pub use arg::{Arg, Dim};
-pub use mem::{BlobLifeTime, Exec, External, Info, Node, Operator as OpInfo, Tensor};
-pub use op::{OpError, Operator};
+pub use graph::{Graph, GraphTopo, Named, NodeRef, TopoNode};
+pub use mem::{BlobLifeTime, Exec, External, Info, Node, Operator as OpInfo};
+pub use tensor::{Tensor, digit_layout, ndarray_layout};
 
 pub use ctx::*;
 pub use nn::*;
 
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
+pub struct NNGraph<T>(pub graph::Graph<Node, Edge<T>>);
 
 #[derive(Clone)]
 pub struct Edge<T> {
@@ -23,7 +23,7 @@ pub struct Edge<T> {
     pub external: Option<External<T>>,
 }
 
-impl<T> Graph<T> {
+impl<T> NNGraph<T> {
     /// 从逻辑连接图下降到存储管理图
     pub fn lower<U>(
         self,

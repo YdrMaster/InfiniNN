@@ -2,8 +2,8 @@
     Context, Distribution, NNError, NuralNetwork, TPAction, TPTensor, Tensor,
     weight_types::RowTPWeight,
 };
-use digit_layout::DigitLayout;
 use std::any::Any;
+use tensor::digit_layout::DigitLayout;
 
 #[derive(Clone)]
 pub struct Linear<T> {

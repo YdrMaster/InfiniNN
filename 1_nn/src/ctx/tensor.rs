@@ -1,8 +1,7 @@
-﻿use crate::Dim;
-
-use super::internal::Internal;
-use digit_layout::DigitLayout;
+﻿use super::internal::Internal;
+use crate::Dim;
 use std::{cell::RefCell, rc::Weak};
+use tensor::digit_layout::DigitLayout;
 
 /// 计算图层张量
 pub struct Tensor<T> {

@@ -1,17 +1,17 @@
 ﻿use super::{GraphBuilder, Tensor, TensorMeta, internal::GraphContext};
-use crate::{Arg, Dim, Graph, NNError, NuralNetwork};
-use digit_layout::DigitLayout;
+use crate::{Arg, Dim, NNError, NNGraph, NuralNetwork};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
 };
+use tensor::digit_layout::DigitLayout;
 
 impl GraphBuilder {
     pub fn build<T, NN: NuralNetwork<T>>(
         &self,
         nn: NN,
         inputs: impl IntoIterator<Item = TensorMeta>,
-    ) -> Result<Graph<T>, NNError> {
+    ) -> Result<NNGraph<T>, NNError> {
         let (context, inputs) = self.new_context(inputs);
         let outputs = trap::<T, NN>("Ω".into(), &context, nn, inputs)?;
         Ok(context.take().into_graph(outputs))

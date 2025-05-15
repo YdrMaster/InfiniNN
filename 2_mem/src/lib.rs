@@ -3,10 +3,10 @@ mod op;
 
 use graph::GraphTopo;
 use std::{iter::zip, rc::Rc};
+use tensor::Tensor;
 
 pub use analyze::{Action, BlobLifeTime, KeyWeak, MemRangeMap, print_lifetime};
 pub use exec::{Exec, Node, Operator};
-pub use tensor::Tensor;
 
 #[repr(transparent)]
 pub struct Graph<T>(pub graph::Graph<Node, Edge<T>>);
