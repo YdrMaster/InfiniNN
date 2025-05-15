@@ -60,7 +60,7 @@ impl<T> NuralNetwork<T> for Normalization<T> {
         let Self { d, epsilon, items } = self;
         let outputs = match items {
             Type::RmsNorm { dt, scale } => {
-                let scale = ctx.load_external("scale", dt, [d.into()], scale.into());
+                let scale = ctx.load_external("scale", dt, [d.into()], scale);
                 ctx.call("", "rms-norm", Some(epsilon.into()), [x, scale])
             }
             Type::LayerNorm {
@@ -69,8 +69,8 @@ impl<T> NuralNetwork<T> for Normalization<T> {
                 dt_bias,
                 bias,
             } => {
-                let scale = ctx.load_external("scale", dt_scale, [d.into()], scale.into());
-                let bias = ctx.load_external("bias", dt_bias, [d.into()], bias.into());
+                let scale = ctx.load_external("scale", dt_scale, [d.into()], scale);
+                let bias = ctx.load_external("bias", dt_bias, [d.into()], bias);
                 ctx.call("", "layer-norm", Some(epsilon.into()), [x, scale, bias])
             }
         };

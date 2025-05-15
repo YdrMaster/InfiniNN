@@ -9,3 +9,6 @@ members = [
 ]
 resolver = "3"
 package.edition = "2024"
+
+[workspace.dependencies]
+tensor = { git = "https://github.com/YdrMaster/tensor", rev = "c0b4893" }

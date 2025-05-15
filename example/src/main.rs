@@ -95,9 +95,7 @@ fn main() {
             value: OpInfo { name, .. },
             ..
         } = node;
-        match name {
-            _ => {}
-        }
+        let _name = name;
     }
 }
 
