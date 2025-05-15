@@ -43,10 +43,14 @@ pub struct TensorMeta {
 
 impl TensorMeta {
     pub fn new(dt: DigitLayout, shape: impl IntoIterator<Item = Dim>) -> Self {
-        Self {
-            dt,
-            shape: shape.into_iter().collect(),
+        let mut shape = shape.into_iter().collect::<Box<_>>();
+        let group = dt.group_size();
+        if group > 1 {
+            if let Some(dim) = shape.last_mut() {
+                *dim = std::mem::take(dim) / group
+            }
         }
+        Self { dt, shape }
     }
 
     #[inline]

@@ -31,6 +31,12 @@ pub enum Dim {
     Product(VecDeque<Operand>),
 }
 
+impl Default for Dim {
+    fn default() -> Self {
+        Self::Constant(0)
+    }
+}
+
 impl Dim {
     /// 变量。
     pub fn var(symbol: impl Display) -> Self {
