@@ -6,6 +6,7 @@ mod linear;
 mod llama;
 mod mlp;
 mod normalization;
+mod output_head;
 mod transformer_blk;
 
 use crate::{
@@ -21,6 +22,7 @@ pub use linear::Linear;
 pub use llama::LLaMA;
 pub use mlp::Mlp;
 pub use normalization::{Normalization, Type as NormType};
+pub use output_head::OutputHead;
 pub use transformer_blk::TransformerBlk;
 
 pub trait NuralNetwork<T>: Sized {

@@ -101,25 +101,27 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                 )
             })
             .collect(),
-        out_norm: ::nn::Normalization {
-            d,
-            epsilon: epsilon as _,
-            items: ::nn::NormType::RmsNorm {
-                dt: dt_norm,
-                scale: "output_norm.weight".into(),
+        output_head: Some(::nn::OutputHead {
+            out_norm: ::nn::Normalization {
+                d,
+                epsilon: epsilon as _,
+                items: ::nn::NormType::RmsNorm {
+                    dt: dt_norm,
+                    scale: "output_norm.weight".into(),
+                },
             },
-        },
-        lm_head: ::nn::Linear::new(
-            dt_linear,
-            [nvoc, d],
-            if gguf.tensors.contains_key("output.weight") {
-                "output.weight"
-            } else {
-                "token_embd.weight"
-            }
-            .into(),
-            None,
-        ),
+            lm_head: ::nn::Linear::new(
+                dt_linear,
+                [nvoc, d],
+                if gguf.tensors.contains_key("output.weight") {
+                    "output.weight"
+                } else {
+                    "token_embd.weight"
+                }
+                .into(),
+                None,
+            ),
+        }),
     }
 }
 
