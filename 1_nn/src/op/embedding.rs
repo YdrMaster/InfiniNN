@@ -20,7 +20,17 @@ impl Operator for Embedding {
                 dims!([_, _d] = wpe);
                 dims!([_n] = pos);
 
-                // TODO 判断正确性
+                // Check if embedding dimensions match
+                if d != _d {
+                    return Err(OpError::ShapeMismatch);
+                }
+
+                // Check if sequence lengths match
+                if n != _n {
+                    return Err(OpError::ShapeMismatch);
+                }
+
+                println!("Embedding dimensions match");
 
                 Ok(vec![TensorMeta::new(wte.dt, [n.clone(), d.clone()])])
             }
