@@ -158,39 +158,29 @@ impl Dim {
         }
     }
 
+
+
     /// Checks if two Dim expressions are mathematically equivalent.
     /// Returns:
-    /// - Some(true) if expressions are definitely equivalent
-    /// - Some(false) if expressions are definitely not equivalent
-    /// - None if equivalence cannot be determined without substitution
-    pub fn equivalent(&self, other: &Self) -> Option<bool> {
+    /// - `true` if the expressions are equivalent.
+    /// - `false` if the expressions are not equivalent.
+    pub fn equivalent(&self, other: &Self) -> bool {
 
-        // If either expression is already in rational form, use it directly
-        let self_rational = match self {
-            Self::Rational(rational) => rational,
-            _ => &RationalExpression::from_dim(self)?,
-        };
-        let other_rational = match other {
-            Self::Rational(rational) => rational,
-            _ => &RationalExpression::from_dim(other)?,
-        };
+        let diff = self.clone() - other.clone();
+        if diff.is_zero() {
+            true
+        } else {
+            false
+        }
 
-        // If both have denominator 1 and are not equal, they are definitely not equivalent
-        if self_rational.denom == vec![CanonicalTerm::new(1)] && 
-           other_rational.denom == vec![CanonicalTerm::new(1)] {
-            if self_rational == other_rational {
-            Some(true)
-        } else {
-            Some(false)
-        }
-        } else {
-            // For other cases, we can only determine equivalence if they match exactly
-            if self_rational == other_rational {
-                Some(true)
-            } else {
-                None
-            }
-        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        let rational = match self {
+            Self::Rational(r) => r,
+            _ => &RationalExpression::from_dim(self).unwrap(),
+        };
+        rational.numer.iter().all(|term| term.coef == Ratio::new(0, 1))
     }
 
     /// Convert to rational expression form and cache the result
@@ -220,12 +210,7 @@ impl Dim {
 
 impl PartialEq for Dim {
     fn eq(&self, other: &Self) -> bool {
-        self.equivalent(other) == Some(true)
-    }
-
-    #[allow(clippy::partialeq_ne_impl)]
-    fn ne(&self, other: &Self) -> bool {
-        self.equivalent(other) == Some(false)
+        self.equivalent(other)
     }
 }
 
@@ -785,16 +770,16 @@ mod tests {
     #[test]
     fn test_dim_equivalence() {
         // Test constant equivalence
-        assert_eq!(Dim::from(1).equivalent(&Dim::from(1)), Some(true));
+        assert!(Dim::from(1).equivalent(&Dim::from(1)));
         assert!(Dim::from(1) != Dim::from(2));
-        assert_eq!(Dim::from(1).equivalent(&Dim::from(2)), Some(false));
+        assert!(!Dim::from(1).equivalent(&Dim::from(2)));
 
         // Test variable equivalence
         let a = Dim::var("a");
         let b = Dim::var("b");
         println!("asserting a != b");
         assert!(a != b);
-        assert_eq!(a.equivalent(&b), Some(false));
+        assert!(!a.equivalent(&b));
 
         // Test sum equivalence
         let expr1 = a.clone() + 1;
@@ -802,10 +787,10 @@ mod tests {
         let expr3 = a.clone() + 2;
         println!("asserting a + 1 == a + 1");
         assert!(expr1 == expr2);
-        assert_eq!(expr1.equivalent(&expr2), Some(true));
+        assert!(expr1.equivalent(&expr2));
         println!("asserting a + 1 != a + 2");
         assert!(expr1 != expr3);
-        assert_eq!(expr1.equivalent(&expr3), Some(false));
+        assert!(!expr1.equivalent(&expr3));
 
         // Test product equivalence
         let expr4 = a.clone() * 2;
@@ -813,10 +798,10 @@ mod tests {
         let expr6 = a.clone() * 3;
         println!("asserting a * 2 == a * 2");
         assert!(expr4 == expr5);
-        assert_eq!(expr4.equivalent(&expr5), Some(true));
+        assert!(expr4.equivalent(&expr5));
         println!("asserting a * 2 != a * 3");
         assert!(expr4 != expr6);
-        assert_eq!(expr4.equivalent(&expr6), Some(false));
+        assert!(!expr4.equivalent(&expr6));
 
         // Test complex expression equivalence
         let complex1 = (a.clone() + 1) * 2;
@@ -824,30 +809,30 @@ mod tests {
         let complex3 = a.clone() * 2 + 3;
         println!("asserting (a + 1) * 2 == a * 2 + 2");
         assert!(complex1 == complex2);
-        assert_eq!(complex1.equivalent(&complex2), Some(true)); // (a + 1) * 2 = a * 2 + 2
+        assert!(complex1.equivalent(&complex2)); // (a + 1) * 2 = a * 2 + 2
         println!("asserting (a + 1) * 2 != a * 2 + 3");
         assert!(complex1 != complex3);
-        assert_eq!(complex1.equivalent(&complex3), Some(false));
+        assert!(!complex1.equivalent(&complex3));
 
         // Test commutative operations
         let expr7 = a.clone() + b.clone();
         let expr8 = b.clone() + a.clone();
         println!("asserting a + b == b + a");
         assert!(expr7 == expr8);
-        assert_eq!(expr7.equivalent(&expr8), Some(true)); // a + b = b + a
+        assert!(expr7.equivalent(&expr8)); // a + b = b + a
 
         let expr9 = a.clone() * b.clone();
         let expr10 = b.clone() * a.clone();
         println!("asserting a * b == b * a");
         assert!(expr9 == expr10);
-        assert_eq!(expr9.equivalent(&expr10), Some(true)); // a * b = b * a
+        assert!(expr9.equivalent(&expr10)); // a * b = b * a
 
         // Test distributive property
         let expr11 = a.clone() * (b.clone() + 1);
         let expr12 = a.clone() * b.clone() + a.clone();
         println!("asserting a * (b + 1) == a * b + a");
         assert!(expr11 == expr12);
-        assert_eq!(expr11.equivalent(&expr12), Some(true)); // a * (b + 1) = a * b + a
+        assert!(expr11.equivalent(&expr12)); // a * (b + 1) = a * b + a
 
         // Test division and complex expressions
         let c = Dim::var("c");
@@ -857,56 +842,56 @@ mod tests {
         let expr14 = a.clone() * (b.clone() / c.clone());
         println!("asserting (a * b) / c == a * (b / c)");
         assert!(expr13 == expr14);
-        assert_eq!(expr13.equivalent(&expr14), Some(true)); // (a * b) / c = a * (b / c)
+        assert!(expr13.equivalent(&expr14)); // (a * b) / c = a * (b / c)
 
         // Test mixed operations with division
         let expr15 = (a.clone() + b.clone()) / c.clone();
         let expr16 = a.clone() / c.clone() + b.clone() / c.clone();
         println!("asserting (a + b) / c == a/c + b/c");
         assert!(expr15 == expr16);
-        assert_eq!(expr15.equivalent(&expr16), Some(true)); // (a + b) / c = a/c + b/c
+        assert!(expr15.equivalent(&expr16)); // (a + b) / c = a/c + b/c
 
         // Test complex nested expressions
         let expr17 = (a.clone() * b.clone() + c.clone()) / (a.clone() + Dim::from(1));
         let expr18 = (b.clone() * a.clone() + c.clone()) / (Dim::from(1) + a.clone());
         println!("asserting (a*b + c)/(a + 1) == (b*a + c)/(1 + a)");
         assert!(expr17 == expr18);
-        assert_eq!(expr17.equivalent(&expr18), Some(true)); // (a*b + c)/(a + 1) = (b*a + c)/(1 + a)
+        assert!(expr17.equivalent(&expr18)); // (a*b + c)/(a + 1) = (b*a + c)/(1 + a)
 
         // Test expressions with multiple divisions
         let expr19 = (a.clone() / b.clone()) / c.clone();
         let expr20 = a.clone() / (b.clone() * c.clone());
         println!("asserting (a/b)/c == a/(b*c)");
         assert!(expr19 == expr20);
-        assert_eq!(expr19.equivalent(&expr20), Some(true)); // (a/b)/c = a/(b*c)
+        assert!(expr19.equivalent(&expr20)); // (a/b)/c = a/(b*c)
 
         // Test expressions with constants and variables
         let expr21 = (a.clone() * Dim::from(2) + b.clone() * Dim::from(3)) / Dim::from(6);
         let expr22 = a.clone() / Dim::from(3) + b.clone() / Dim::from(2);
         println!("asserting (2a + 3b)/6 == a/3 + b/2");
         assert!(expr21 == expr22);
-        assert_eq!(expr21.equivalent(&expr22), Some(true)); // (2a + 3b)/6 = a/3 + b/2
+        assert!(expr21.equivalent(&expr22)); // (2a + 3b)/6 = a/3 + b/2
 
         // Test expressions with nested divisions and multiplications
         let expr23 = a.clone() * (b.clone() / (c.clone() * Dim::from(2)));
         let expr24 = (a.clone() * b.clone()) / (Dim::from(2) * c.clone());
         println!("asserting a * (b/(c*2)) == (a*b)/(2*c)");
         assert!(expr23 == expr24);
-        assert_eq!(expr23.equivalent(&expr24), Some(true)); // a * (b/(c*2)) = (a*b)/(2*c)
+        assert!(expr23.equivalent(&expr24)); // a * (b/(c*2)) = (a*b)/(2*c)
 
         // Test expressions with subtraction and division
         let expr25 = (a.clone() - b.clone()) / c.clone();
         let expr26 = a.clone() / c.clone() - b.clone() / c.clone();
         println!("asserting (a - b)/c == a/c - b/c");
         assert!(expr25 == expr26);
-        assert_eq!(expr25.equivalent(&expr26), Some(true)); // (a - b)/c = a/c - b/c
+        assert!(expr25.equivalent(&expr26)); // (a - b)/c = a/c - b/c
 
         // Test expressions with multiple operations
         let expr27 = (a.clone() * b.clone() + c.clone() * Dim::from(2)) / (b.clone() + Dim::from(2));
         let expr28 = (b.clone() * a.clone() + Dim::from(2) * c.clone()) / (Dim::from(2) + b.clone());
         println!("asserting (a*b + 2c)/(b + 2) == (b*a + 2c)/(2 + b)");
         assert!(expr27 == expr28);
-        assert_eq!(expr27.equivalent(&expr28), Some(true)); // (a*b + 2c)/(b + 2) = (b*a + 2c)/(2 + b)
+        assert!(expr27.equivalent(&expr28)); // (a*b + 2c)/(b + 2) = (b*a + 2c)/(2 + b)
     }
 
     #[test]
@@ -920,77 +905,77 @@ mod tests {
         let pow2 = a.clone() * a.clone();
         println!("asserting a * a == a * a");
         assert!(pow1 == pow2);
-        assert_eq!(pow1.equivalent(&pow2), Some(true));
+        assert!(pow1.equivalent(&pow2));
 
         // Test power with division
         let pow3 = (a.clone() * a.clone()) / b.clone();
         let pow4 = a.clone() * (a.clone() / b.clone());
         println!("asserting (a * a) / b == a * (a / b)");
         assert!(pow3 == pow4);
-        assert_eq!(pow3.equivalent(&pow4), Some(true));
+        assert!(pow3.equivalent(&pow4));
 
         // Test multiple variables with powers
         let pow5 = (a.clone() * a.clone() * b.clone()) / (c.clone() * c.clone());
         let pow6 = (a.clone() * b.clone()) * (a.clone() / (c.clone() * c.clone()));
         println!("asserting (a² * b) / c² == (a * b) * (a / c²)");
         assert!(pow5 == pow6);
-        assert_eq!(pow5.equivalent(&pow6), Some(true));
+        assert!(pow5.equivalent(&pow6));
 
         // Test complex power expressions with constants
         let pow7 = (a.clone() * a.clone() * Dim::from(2) + b.clone() * b.clone() * Dim::from(3)) / Dim::from(6);
         let pow8 = (a.clone() * a.clone()) / Dim::from(3) + (b.clone() * b.clone()) / Dim::from(2);
         println!("asserting (2a² + 3b²)/6 == a²/3 + b²/2");
         assert!(pow7 == pow8);
-        assert_eq!(pow7.equivalent(&pow8), Some(true));
+        assert!(pow7.equivalent(&pow8));
 
         // Test nested power expressions
         let pow9 = (a.clone() * a.clone() + b.clone()) / (a.clone() * c.clone());
         let pow10 = a.clone() / c.clone() + b.clone() / (a.clone() * c.clone());
         println!("asserting (a² + b)/(a * c) == a/c + b/(a * c)");
         assert!(pow9 == pow10);
-        assert_eq!(pow9.equivalent(&pow10), Some(true));
+        assert!(pow9.equivalent(&pow10));
 
         // Test power expressions with multiple operations
         let pow11 = (a.clone() * a.clone() * b.clone() + c.clone() * c.clone()) / (b.clone() + Dim::from(2));
         let pow12 = (b.clone() * a.clone() * a.clone() + c.clone() * c.clone()) / (Dim::from(2) + b.clone());
         println!("asserting (a² * b + c²)/(b + 2) == (b * a² + c²)/(2 + b)");
         assert!(pow11 == pow12);
-        assert_eq!(pow11.equivalent(&pow12), Some(true));
+        assert!(pow11.equivalent(&pow12));
 
         // Test power expressions with division and multiplication
         let pow13 = (a.clone() * a.clone()) / (b.clone() * b.clone()) * c.clone();
         let pow14 = (a.clone() * a.clone() * c.clone()) / (b.clone() * b.clone());
         println!("asserting (a²/b²) * c == (a² * c)/b²");
         assert!(pow13 == pow14);
-        assert_eq!(pow13.equivalent(&pow14), Some(true));
+        assert!(pow13.equivalent(&pow14));
 
         // Test sum of terms with same variable but different exponents
         let sum1 = a.clone() + a.clone() * a.clone() + a.clone() * a.clone() * a.clone();
         let sum2 = a.clone() * a.clone() * a.clone() + a.clone() * a.clone() + a.clone();
         println!("asserting a + a² + a³ == a³ + a² + a");
         assert!(sum1 == sum2);
-        assert_eq!(sum1.equivalent(&sum2), Some(true));
+        assert!(sum1.equivalent(&sum2));
 
         // Test sum of terms with same variable and coefficients
         let sum3 = a.clone() * Dim::from(2) + a.clone() * a.clone() * Dim::from(3) + a.clone() * a.clone() * a.clone() * Dim::from(4);
         let sum4 = a.clone() * a.clone() * a.clone() * Dim::from(4) + a.clone() * Dim::from(2) + a.clone() * a.clone() * Dim::from(3);
         println!("asserting 2a + 3a² + 4a³ == 4a³ + 2a + 3a²");
         assert!(sum3 == sum4);
-        assert_eq!(sum3.equivalent(&sum4), Some(true));
+        assert!(sum3.equivalent(&sum4));
 
         // Test sum of terms with same variable and negative coefficients
         let sum5 = a.clone() * Dim::from(2) - a.clone() * a.clone() * Dim::from(3) + a.clone() * a.clone() * a.clone() * Dim::from(4);
         let sum6 = a.clone() * a.clone() * a.clone() * Dim::from(4) + a.clone() * Dim::from(2) - a.clone() * a.clone() * Dim::from(3);
         println!("asserting 2a - 3a² + 4a³ == 4a³ + 2a - 3a²");
         assert!(sum5 == sum6);
-        assert_eq!(sum5.equivalent(&sum6), Some(true));
+        assert!(sum5.equivalent(&sum6));
 
         // Test sum of terms with same variable and mixed operations
         let sum7 = (a.clone() * a.clone() + a.clone()) / Dim::from(2) + a.clone() * a.clone() * a.clone();
         let sum8 = a.clone() * a.clone() * a.clone() + (a.clone() + a.clone() * a.clone()) / Dim::from(2);
         println!("asserting (a² + a)/2 + a³ == a³ + (a + a²)/2");
         assert!(sum7 == sum8);
-        assert_eq!(sum7.equivalent(&sum8), Some(true));
+        assert!(sum7.equivalent(&sum8));
     }
 
     #[test]
@@ -1004,7 +989,7 @@ mod tests {
         let complex2 = (a.clone() * a.clone() * b.clone()) / (c.clone() * c.clone() + c.clone() * 3 + Dim::from(2));
         println!("asserting (a² * b)/((c+1)(c+2)) == (a² * b)/(c² + 3c + 2)");
         assert!(complex1 == complex2);
-        assert_eq!(complex1.equivalent(&complex2), Some(true));
+        assert!(complex1.equivalent(&complex2));
     }
 
     #[test]
@@ -1017,21 +1002,21 @@ mod tests {
         let expr2 = a.clone() * a.clone() * a.clone() + a.clone() * a.clone() + a.clone();
         println!("asserting a + a² + a³ == a³ + a² + a");
         assert!(expr1 == expr2);
-        assert_eq!(expr1.equivalent(&expr2), Some(true));
+        assert!(expr1.equivalent(&expr2));
 
         // Test ordering of terms with different bases and exponents
         let expr3 = a.clone() + b.clone() + a.clone() * a.clone() + b.clone() * b.clone();
         let expr4 = b.clone() * b.clone() + a.clone() * a.clone() + b.clone() + a.clone();
         println!("asserting a + b + a² + b² == b² + a² + b + a");
         assert!(expr3 == expr4);
-        assert_eq!(expr3.equivalent(&expr4), Some(true));
+        assert!(expr3.equivalent(&expr4));
 
         // Test ordering with negative exponents
         let expr5 = a.clone() / b.clone() + a.clone() * a.clone() / b.clone();
         let expr6 = a.clone() * a.clone() / b.clone() + a.clone() / b.clone();
         println!("asserting a/b + a²/b == a²/b + a/b");
         assert!(expr5 == expr6);
-        assert_eq!(expr5.equivalent(&expr6), Some(true));
+        assert!(expr5.equivalent(&expr6));
     }
 
     #[test]
@@ -1046,7 +1031,7 @@ mod tests {
             vec![CanonicalTerm::new(1)]
         );
         let dim1: Dim = rational1.into();
-        assert_eq!(dim1, Dim::Constant(5));
+        assert!(dim1 == Dim::Constant(5));
 
         // Test simple variable expressions
         let rational2 = RationalExpression::new(
@@ -1054,7 +1039,7 @@ mod tests {
             vec![CanonicalTerm::new(1)]
         );
         let dim2: Dim = rational2.into();
-        assert_eq!(dim2, a.clone());
+        assert!(dim2 == a.clone());
 
         // Test expressions with negative coefficients
         let rational3 = RationalExpression::new(
@@ -1063,7 +1048,7 @@ mod tests {
         );
         let dim3: Dim = rational3.into();
         let expected3 = Dim::Sum(VecDeque::from([Operand { ty: Type::Negative, dim: Dim::Constant(3) }]));
-        assert_eq!(dim3, expected3);
+        assert!(dim3 == expected3);
 
         // Test simple division
         let rational4 = RationalExpression::new(
@@ -1071,7 +1056,7 @@ mod tests {
             vec![CanonicalTerm::with_var(1, "b".to_string())]
         );
         let dim4: Dim = rational4.into();
-        assert_eq!(dim4, a.clone() / b.clone());
+        assert!(dim4 == a.clone() / b.clone());
 
         // Test complex rational expressions
         let rational5 = RationalExpression::new(
@@ -1082,7 +1067,7 @@ mod tests {
             vec![CanonicalTerm::new(6)]
         );
         let dim5: Dim = rational5.into();
-        assert_eq!(dim5, (a.clone() * 2 + b.clone() * 3) / 6);
+        assert!(dim5 == (a.clone() * 2 + b.clone() * 3) / 6);
 
         // Test expressions with multiple variables and exponents
         let rational6 = RationalExpression::new(
@@ -1105,7 +1090,7 @@ mod tests {
             ]
         );
         let dim6: Dim = rational6.into();
-        assert_eq!(dim6, (a.clone() * a.clone() * b.clone()) / (c.clone() * c.clone()));
+        assert!(dim6 == (a.clone() * a.clone() * b.clone()) / (c.clone() * c.clone()));
 
         // Test expressions with negative exponents
         let rational7 = RationalExpression::new(
@@ -1121,7 +1106,7 @@ mod tests {
             vec![CanonicalTerm::new(1)]
         );
         let dim7: Dim = rational7.into();
-        assert_eq!(dim7, a.clone() / b.clone());
+        assert!(dim7 == a.clone() / b.clone());
 
         // Test expressions with multiple terms in numerator and denominator
         let rational8 = RationalExpression::new(
@@ -1135,7 +1120,7 @@ mod tests {
             ]
         );
         let dim8: Dim = rational8.into();
-        assert_eq!(dim8, (a.clone() * 2 + b.clone() * 3) / (c.clone() + 2));
+        assert!(dim8 == (a.clone() * 2 + b.clone() * 3) / (c.clone() + 2));
 
         // Test empty numerator (should become 0)
         let rational9 = RationalExpression::new(
@@ -1143,7 +1128,7 @@ mod tests {
             vec![CanonicalTerm::new(1)]
         );
         let dim9: Dim = rational9.into();
-        assert_eq!(dim9, Dim::Constant(0));
+        assert!(dim9 == Dim::Constant(0));
     }
 
     #[test]
@@ -1168,92 +1153,88 @@ mod tests {
         let common_factor = a.clone() + b.clone() + c.clone();
         let rational2 = ((a.clone() + b.clone()) * common_factor.clone()) / ((c.clone() + d.clone()) * common_factor);
         println!("asserting (a + b)/(c + d) == ((a + b)(a + b + c))/((c + d)(a + b + c))");
-        assert!(!(rational1 == rational2));
-        assert!(!(rational1 != rational2));
-        assert_eq!(rational1.equivalent(&rational2), None);
+        assert!(rational1 == rational2);
+        assert!(rational1.equivalent(&rational2));
 
         // Test with common constant
         let coef1 = (a.clone() + b.clone()) / (c.clone() + d.clone());
         let coef2 = ((a.clone() + b.clone()) * 2) / ((c.clone() + d.clone()) * 2);
         println!("asserting (a + b)/(c + d) == (2(a + b))/(2(c + d))");
         assert!(coef1 == coef2);
-        assert_eq!(coef1.equivalent(&coef2), Some(true));
+        assert!(coef1.equivalent(&coef2));
 
         // Test with different common constants
         let coef3 = ((a.clone() + b.clone()) * 2) / ((c.clone() + d.clone()) * 2);
         let coef4 = ((a.clone() + b.clone()) * 4) / ((c.clone() + d.clone()) * 4);
         println!("asserting (2(a + b))/(2(c + d)) == (4(a + b))/(4(c + d))");
         assert!(coef3 == coef4);
-        assert_eq!(coef3.equivalent(&coef4), Some(true));
+        assert!(coef3.equivalent(&coef4));
 
         // Test with more complex expressions and common factor
         let complex1 = (a.clone() * b.clone() + c.clone()) / (a.clone() + d.clone());
         let common_factor2 = a.clone() * b.clone() + c.clone() + d.clone();
         let complex2 = ((a.clone() * b.clone() + c.clone()) * common_factor2.clone()) / ((a.clone() + d.clone()) * common_factor2);
         println!("asserting (ab + c)/(a + d) == ((ab + c)(ab + c + d))/((a + d)(ab + c + d))");
-        assert!(!(complex1 == complex2));
-        assert!(!(complex1 != complex2));
-        assert_eq!(complex1.equivalent(&complex2), None);
+        assert!(complex1 == complex2);
+        assert!(complex1.equivalent(&complex2));
 
         // Test with more complex expressions and common constant
         let coef5 = (a.clone() * b.clone() + c.clone()) / (a.clone() + d.clone());
         let coef6 = ((a.clone() * b.clone() + c.clone()) * 3) / ((a.clone() + d.clone()) * 3);
         println!("asserting (ab + c)/(a + d) == (3(ab + c))/(3(a + d))");
         assert!(coef5 == coef6);
-        assert_eq!(coef5.equivalent(&coef6), Some(true));
+        assert!(coef5.equivalent(&coef6));
 
         // Test with different common constants in complex expressions
         let coef7 = ((a.clone() * b.clone() + c.clone()) * 3) / ((a.clone() + d.clone()) * 3);
         let coef8 = ((a.clone() * b.clone() + c.clone()) * 6) / ((a.clone() + d.clone()) * 6);
         println!("asserting (3(ab + c))/(3(a + d)) == (6(ab + c))/(6(a + d))");
         assert!(coef7 == coef8);
-        assert_eq!(coef7.equivalent(&coef8), Some(true));
+        assert!(coef7.equivalent(&coef8));
 
         // Test with expressions containing constants and common factor
         let const1 = (a.clone() * 2 + b.clone() * 3) / (c.clone() + 4);
         let common_factor3 = a.clone() + b.clone() + c.clone();
         let const2 = ((a.clone() * 2 + b.clone() * 3) * common_factor3.clone()) / ((c.clone() + 4) * common_factor3);
         println!("asserting (2a + 3b)/(c + 4) == ((2a + 3b)(a + b + c))/((c + 4)(a + b + c))");
-        assert!(!(const1 == const2));
-        assert!(!(const1 != const2));
-        assert_eq!(const1.equivalent(&const2), None);
+        assert!(const1 == const2);
+        assert!(const1.equivalent(&const2));
 
         // Test with expressions containing constants and common constant
         let coef9 = (a.clone() * 2 + b.clone() * 3) / (c.clone() + 4);
         let coef10 = ((a.clone() * 2 + b.clone() * 3) * 5) / ((c.clone() + 4) * 5);
         println!("asserting (2a + 3b)/(c + 4) == (5(2a + 3b))/(5(c + 4))");
         assert!(coef9 == coef10);
-        assert_eq!(coef9.equivalent(&coef10), Some(true));
+        assert!(coef9.equivalent(&coef10));
 
         // Test with different common constants in expressions with constants
         let coef11 = ((a.clone() * 2 + b.clone() * 3) * 5) / ((c.clone() + 4) * 5);
         let coef12 = ((a.clone() * 2 + b.clone() * 3) * 10) / ((c.clone() + 4) * 10);
         println!("asserting (5(2a + 3b))/(5(c + 4)) == (10(2a + 3b))/(10(c + 4))");
         assert!(coef11 == coef12);
-        assert_eq!(coef11.equivalent(&coef12), Some(true));
+        assert!(coef11.equivalent(&coef12));
 
         // Test with nested expressions and common factor
         let nested1 = ((a.clone() + b.clone()) * c.clone()) / ((a.clone() - b.clone()) * d.clone());
         let common_factor4 = a.clone() * b.clone() + c.clone() * d.clone();
         let nested2 = (((a.clone() + b.clone()) * c.clone()) * common_factor4.clone()) / (((a.clone() - b.clone()) * d.clone()) * common_factor4);
         println!("asserting ((a + b)c)/((a - b)d) == ((a + b)c(ab + cd))/((a - b)d(ab + cd))");
-        assert!(!(nested1 == nested2));
-        assert!(!(nested1 != nested2));
-        assert_eq!(nested1.equivalent(&nested2), None);
+        assert!(nested1 == nested2);
+        assert!(nested1.equivalent(&nested2));
 
         // Test with nested expressions and common constant
         let coef13 = ((a.clone() + b.clone()) * c.clone()) / ((a.clone() - b.clone()) * d.clone());
         let coef14 = (((a.clone() + b.clone()) * c.clone()) * 4) / (((a.clone() - b.clone()) * d.clone()) * 4);
         println!("asserting ((a + b)c)/((a - b)d) == (4((a + b)c))/(4((a - b)d))");
         assert!(coef13 == coef14);
-        assert_eq!(coef13.equivalent(&coef14), Some(true));
+        assert!(coef13.equivalent(&coef14));
 
         // Test with different common constants in nested expressions
         let coef15 = (((a.clone() + b.clone()) * c.clone()) * 4) / (((a.clone() - b.clone()) * d.clone()) * 4);
         let coef16 = (((a.clone() + b.clone()) * c.clone()) * 8) / (((a.clone() - b.clone()) * d.clone()) * 8);
         println!("asserting (4((a + b)c))/(4((a - b)d)) == (8((a + b)c))/(8((a - b)d))");
         assert!(coef15 == coef16);
-        assert_eq!(coef15.equivalent(&coef16), Some(true));
+        assert!(coef15.equivalent(&coef16));
     }
 
     #[test]
