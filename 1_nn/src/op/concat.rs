@@ -15,10 +15,19 @@ impl Operator for Concat {
         let dt = inputs[0].dt;
         let mut origin_shape = inputs[0].shape.to_vec();
 
+        for i in 0..inputs.len() {
+            if i == axis {
+                continue;
+            }
+            if inputs.iter().any(|t| !origin_shape[i].check_eq(&t.shape[i])) {
+                return Err(OpError::ShapeMismatch);
+            }
+        }
+
         let axis_sum = inputs
             .iter()
             .map(|t| t.shape[axis].clone())
-            .fold(Dim::Constant(0), |acc, d| acc + d);
+            .fold(Dim::from(0), |acc, d| acc + d);
 
         origin_shape[axis] = axis_sum;
 

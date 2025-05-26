@@ -45,7 +45,7 @@ impl<T> NNGraph<T> {
             let shape = meta
                 .shape
                 .iter()
-                .map(|d| d.substitute(value))
+                .map(|d| d.substitute(value).unwrap())
                 .collect::<Vec<_>>();
             match external {
                 Some(External { name, item }) => {

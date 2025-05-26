@@ -62,7 +62,7 @@ impl Arg {
 
     pub fn substitute(self, value: &HashMap<&str, usize>) -> Self {
         match self {
-            Self::Dim(dim) => Self::Int(dim.substitute(value) as _),
+            Self::Dim(dim) => Self::Int(dim.substitute(value).unwrap() as _),
             Self::Arr(args) => Self::Arr(args.into_iter().map(|a| a.substitute(value)).collect()),
             Self::Dict(map) => Self::Dict(
                 map.into_iter()
@@ -74,9 +74,9 @@ impl Arg {
     }
 
     pub fn to_usize(&self) -> usize {
-        match *self {
-            Self::Dim(Dim::Constant(dim)) => dim,
-            Arg::Int(val) => val as _,
+        match self {
+            Self::Dim(dim) => dim.to_usize(),
+            Self::Int(val) => *val as _,
             _ => panic!(),
         }
     }

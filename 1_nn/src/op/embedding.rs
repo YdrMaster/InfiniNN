@@ -20,9 +20,16 @@ impl Operator for Embedding {
                 dims!([_, _d] = wpe);
                 dims!([_n] = pos);
 
-                // TODO 判断正确性
+                let mut d = d.clone();
+                let mut n = n.clone();
+                if !d.check_eq(&_d) {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if !n.check_eq(&_n) {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![TensorMeta::new(wte.dt, [n.clone(), d.clone()])])
+                Ok(vec![TensorMeta::new(wte.dt, [n, d])])
             }
             _ => Err(OpError::ShapeError),
         }
