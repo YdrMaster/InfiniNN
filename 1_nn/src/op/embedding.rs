@@ -22,10 +22,10 @@ impl Operator for Embedding {
 
                 let mut d = d.clone();
                 let mut n = n.clone();
-                if !d.check_eq(&_d) {
+                if !d.check_eq(_d) {
                     return Err(OpError::ShapeMismatch);
                 }
-                if !n.check_eq(&_n) {
+                if !n.check_eq(_n) {
                     return Err(OpError::ShapeMismatch);
                 }
 

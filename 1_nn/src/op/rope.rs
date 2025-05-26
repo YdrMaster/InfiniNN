@@ -28,7 +28,7 @@ impl Operator for Rope {
 
             
                 let mut x = x.clone();
-                if !x.shape[0].check_eq(&n_pos) {
+                if !x.shape[0].check_eq(n_pos) {
                     return Err(OpError::ShapeMismatch);
                 }
 

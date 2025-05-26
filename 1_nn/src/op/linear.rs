@@ -29,7 +29,7 @@ impl Operator for Linear {
                 }
                 let m = m.clone();
                 let mut n = n.clone();
-                if !n.check_eq(&_n) {
+                if !n.check_eq(_n) {
                     return Err(OpError::ShapeMismatch);
                 }
                 Ok(vec![TensorMeta::new(x.dt, [m, n])])
@@ -45,10 +45,10 @@ impl Operator for Linear {
 
                 let mut m = m.clone();
                 let mut n = n.clone();
-                if !m.check_eq(&_m) {
+                if !m.check_eq(_m) {
                     return Err(OpError::ShapeMismatch);
                 }
-                if !n.check_eq(&_n) {
+                if !n.check_eq(_n) {
                     return Err(OpError::ShapeMismatch);
                 }
                 Ok(vec![TensorMeta::new(x.dt, [m, n])])
@@ -65,10 +65,10 @@ impl Operator for Linear {
 
                 let mut m = m.clone();
                 let mut n = n.clone();
-                if !m.check_eq(&_m) {
+                if !m.check_eq(_m) {
                     return Err(OpError::ShapeMismatch);
                 }
-                if !n.check_eq(&_n) {
+                if !n.check_eq(_n) {
                     return Err(OpError::ShapeMismatch);
                 }
                 Ok(vec![TensorMeta::new(x.dt, [m, n])])

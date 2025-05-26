@@ -15,10 +15,10 @@ impl Operator for SwiGLU {
         dims!([n_up, d_up] = up);
         
         let mut gate = gate.clone();
-        if !gate.shape[0].check_eq(&n_up) {
+        if !gate.shape[0].check_eq(n_up) {
             return Err(OpError::ShapeMismatch);
         }
-        if !gate.shape[1].check_eq(&d_up) {
+        if !gate.shape[1].check_eq(d_up) {
             return Err(OpError::ShapeMismatch);
         }
 

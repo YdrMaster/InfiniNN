@@ -15,11 +15,11 @@ impl Operator for Concat {
         let dt = inputs[0].dt;
         let mut origin_shape = inputs[0].shape.to_vec();
 
-        for i in 0..inputs.len() {
+        for (i, shape) in origin_shape.iter_mut().enumerate().take(inputs.len()) {
             if i == axis {
                 continue;
             }
-            if inputs.iter().any(|t| !origin_shape[i].check_eq(&t.shape[i])) {
+            if inputs.iter().any(|t| !shape.check_eq(&t.shape[i])) {
                 return Err(OpError::ShapeMismatch);
             }
         }

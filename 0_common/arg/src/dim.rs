@@ -57,7 +57,7 @@ impl Dim {
 
     pub fn to_usize(&self) -> usize {
         match self.expr {
-            Expr::Constant(c) => c as usize,
+            Expr::Constant(c) => c,
             _ => panic!("Dim is not a constant"),
         }
     }

@@ -19,13 +19,13 @@ impl Operator for Attention {
                 
 
                 let mut q = q.clone();
-                if !q.shape[0].check_eq(&n_q) {
+                if !q.shape[0].check_eq(n_q) {
                     return Err(OpError::ShapeMismatch);
                 }
-                if !q.shape[0].check_eq(&n_k) {
+                if !q.shape[0].check_eq(n_k) {
                     return Err(OpError::ShapeMismatch);
                 }
-                if !q.shape[0].check_eq(&n_v) {
+                if !q.shape[0].check_eq(n_v) {
                     return Err(OpError::ShapeMismatch);
                 }
 
