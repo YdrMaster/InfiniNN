@@ -18,8 +18,7 @@ impl Operator for Attention {
                 dims!([n_v, _dv] = v);
 
                 // Check if all inputs have the same batch size
-                let n_q =
-                    make_eq(&[&q.shape[0], n_q, n_k, n_v]).ok_or(OpError::ShapeMismatch)?;
+                let n_q = make_eq(&[&q.shape[0], n_q, n_k, n_v]).ok_or(OpError::ShapeMismatch)?;
 
                 Ok(vec![TensorMeta::new(q.dt, [n_q, _dq.clone()])])
             }
