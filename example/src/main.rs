@@ -32,9 +32,9 @@ fn main() {
         .build(
             model,
             [
-                TensorMeta::new(types::U32, [Dim::var("n_tok")]),
-                TensorMeta::new(types::U32, [Dim::var("n_tok")]),
-                TensorMeta::new(types::U32, [Dim::var("n_out")]),
+                TensorMeta::new(types::U32, [Dim::from("n_tok")]),
+                TensorMeta::new(types::U32, [Dim::from("n_tok")]),
+                TensorMeta::new(types::U32, [Dim::from("n_out")]),
             ],
         )
         .unwrap();

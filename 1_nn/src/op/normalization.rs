@@ -14,9 +14,12 @@ impl Operator for RmsNorm {
                 dims!([_n, _d] = x);
                 dims!([_d] = scale);
 
-                // TODO 判断正确性
+                let mut x = x.clone();
+                if !x.shape[1].check_eq(&scale.shape[0]) {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![x.clone()])
+                Ok(vec![x])
             }
             _ => Err(OpError::ShapeError),
         }
@@ -36,9 +39,15 @@ impl Operator for LayerNorm {
                 dims!([_d] = scale);
                 dims!([_d] = bias);
 
-                // TODO 判断正确性
+                let mut x = x.clone();
+                if !x.shape[1].check_eq(&scale.shape[0]) {
+                    return Err(OpError::ShapeMismatch);
+                }
+                if !x.shape[1].check_eq(&bias.shape[0]) {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![x.clone()])
+                Ok(vec![x])
             }
             _ => Err(OpError::ShapeError),
         }

@@ -1,231 +1,183 @@
-﻿//! 简单的符号运算系统，用于将形状符号化。
+//! 简单的符号运算系统，用于将形状符号化。
 //!
 //! 考虑到形状运算的实际情况，只支持多项式的运算。
 
 use std::{
-    collections::{BTreeSet, HashMap, VecDeque},
-    fmt::Display,
-    ops::{Add, Div, Mul, Neg, Sub},
+    collections::{BTreeSet, HashMap},
+    ops::{Add, Div, Mul, Sub},
 };
+use symbolic_expr::Expr;
 
 /// 形状的一个维度，或参与维度运算的值。
 ///
 /// ```rust
 /// # use std::collections::HashMap;
 /// # use arg::Dim;
-/// let a = Dim::var("a");
-/// let b = Dim::var("b");
+/// let a = Dim::from("a");
+/// let b = Dim::from("b");
 /// let _1 = Dim::from(1);
 /// let expr = (a + _1 - 2) * 3 / (b + 1);
-/// assert_eq!(expr.substitute(&HashMap::from([("a", 8), ("b", 6)])), 3);
+/// assert_eq!(expr.substitute(&HashMap::from([("a", 8), ("b", 6)])), Some(3));
 /// ```
 #[derive(Clone, Debug)]
-pub enum Dim {
-    /// 常量
-    Constant(usize),
-    /// 变量
-    Variable(String),
-    /// 和式
-    Sum(VecDeque<Operand>),
-    /// 积式
-    Product(VecDeque<Operand>),
+pub struct Dim {
+    expr: Expr,
+    eq_constraints: Vec<Expr>,
 }
 
 impl Default for Dim {
     fn default() -> Self {
-        Self::Constant(0)
+        Self {
+            expr: Expr::Constant(0),
+            eq_constraints: vec![],
+        }
     }
 }
 
 impl Dim {
-    /// 变量。
-    pub fn var(symbol: impl Display) -> Self {
-        Self::Variable(symbol.to_string())
-    }
-
-    /// 维度作为正操作数。
-    pub fn positive(self) -> Operand {
-        Operand {
-            ty: Type::Positive,
-            dim: self,
-        }
-    }
-
-    /// 维度作为负操作数。
-    pub fn negative(self) -> Operand {
-        Operand {
-            ty: Type::Negative,
-            dim: self,
-        }
-    }
-
     /// 统计表达式中出现的变量名。
     pub fn variables(&self) -> BTreeSet<&str> {
-        let mut ans = BTreeSet::new();
-        self.append_variables(&mut ans);
-        ans
+        self.expr.variables()
     }
 
-    /// 遍历表达式，递归地将变量名添加到集合。
     pub fn append_variables<'s>(&'s self, set: &mut BTreeSet<&'s str>) {
-        match self {
-            Self::Constant(_) => {}
-            Self::Variable(name) => {
-                set.insert(name);
-            }
-            Self::Sum(operands) | Self::Product(operands) => {
-                operands.iter().for_each(|op| op.dim.append_variables(set))
-            }
+        self.expr.append_variables(set);
+    }
+
+    pub fn substitute(&self, value: &HashMap<&str, usize>) -> Option<usize> {
+        if self
+            .eq_constraints
+            .iter()
+            .any(|constraint| constraint.substitute(value) != 0)
+        {
+            None
+        } else {
+            Some(self.expr.substitute(value))
         }
     }
 
-    pub fn substitute(&self, value: &HashMap<&str, usize>) -> usize {
-        match self {
-            &Self::Constant(value) => value,
-            Self::Variable(name) => *value
-                .get(&**name)
-                .unwrap_or_else(|| panic!("unknown variable \"{name}\"")),
-            Self::Sum(operands) => operands.iter().fold(0, |acc, Operand { ty, dim }| {
-                let value = dim.substitute(value);
-                match ty {
-                    Type::Positive => acc + value,
-                    Type::Negative => acc.checked_sub(value).unwrap(),
-                }
-            }),
-            Self::Product(operands) => operands.iter().fold(1, |acc, Operand { ty, dim }| {
-                let value = dim.substitute(value);
-                match ty {
-                    Type::Positive => acc * value,
-                    Type::Negative => {
-                        assert_eq!(acc % value, 0);
-                        acc / value
-                    }
-                }
-            }),
+    pub fn to_usize(&self) -> usize {
+        match self.expr {
+            Expr::Constant(c) => c,
+            _ => panic!("Dim is not a constant"),
         }
     }
-}
 
-#[derive(Clone, Copy, Debug)]
-enum Type {
-    Positive,
-    Negative,
-}
-
-impl Type {
-    pub fn rev(self) -> Self {
-        match self {
-            Self::Positive => Self::Negative,
-            Self::Negative => Self::Positive,
+    pub fn check_eq(&mut self, other: &Self) -> bool {
+        if self.expr == other.expr {
+            true
+        } else if self.expr != other.expr {
+            false
+        } else {
+            self.eq_constraints
+                .push(self.expr.clone() - other.expr.clone());
+            true
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Operand {
-    ty: Type,
-    dim: Dim,
-}
-
-impl Operand {
-    pub fn rev_assign(&mut self) {
-        self.ty = self.ty.rev()
-    }
-}
-
-impl Neg for Operand {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        let Self { ty, dim } = self;
-        Self { ty: ty.rev(), dim }
     }
 }
 
 impl From<usize> for Dim {
     fn from(value: usize) -> Self {
-        Dim::Constant(value)
+        Self {
+            expr: Expr::from(value),
+            eq_constraints: vec![],
+        }
+    }
+}
+
+impl From<&str> for Dim {
+    fn from(value: &str) -> Self {
+        Self {
+            expr: Expr::from(value),
+            eq_constraints: vec![],
+        }
     }
 }
 
 impl From<String> for Dim {
     fn from(value: String) -> Self {
-        Dim::Variable(value)
+        Self {
+            expr: Expr::from(value),
+            eq_constraints: vec![],
+        }
     }
 }
 
-macro_rules! impl_op {
-    ($op:ty; $fn:ident; positive: $variant: ident) => {
-        impl $op for Dim {
-            type Output = Self;
-            fn $fn(self, rhs: Self) -> Self::Output {
-                match self {
-                    Dim::$variant(mut l) => match rhs {
-                        Self::$variant(r) => {
-                            l.extend(r);
-                            Self::$variant(l)
-                        }
-                        r => {
-                            l.push_back(r.positive());
-                            Self::$variant(l)
-                        }
-                    },
-                    l => match rhs {
-                        Self::$variant(mut r) => {
-                            r.push_front(l.positive());
-                            Self::$variant(r)
-                        }
-                        r => Self::$variant([l.positive(), r.positive()].into()),
-                    },
-                }
-            }
+impl Add for Dim {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            expr: self.expr + rhs.expr,
+            eq_constraints: vec![],
         }
-    };
-
-    ($op:ty; $fn:ident; negative: $variant: ident) => {
-        impl $op for Dim {
-            type Output = Self;
-            fn $fn(self, rhs: Self) -> Self::Output {
-                match self {
-                    Dim::$variant(mut l) => match rhs {
-                        Self::$variant(r) => {
-                            l.extend(r.into_iter().map(Neg::neg));
-                            Self::$variant(l)
-                        }
-                        r => {
-                            l.push_back(r.negative());
-                            Self::$variant(l)
-                        }
-                    },
-                    l => match rhs {
-                        Self::$variant(mut r) => {
-                            r.iter_mut().for_each(Operand::rev_assign);
-                            r.push_front(l.positive());
-                            Self::$variant(r)
-                        }
-                        r => Self::$variant([l.positive(), r.negative()].into()),
-                    },
-                }
-            }
-        }
-    };
-
-    ($op:ident; $fn:ident; usize) => {
-        impl $op<usize> for Dim {
-            type Output = Self;
-            fn $fn(self, rhs: usize) -> Self::Output {
-                self.$fn(Self::Constant(rhs))
-            }
-        }
-    };
+    }
 }
 
-impl_op!(Add; add; positive: Sum    );
-impl_op!(Sub; sub; negative: Sum    );
-impl_op!(Mul; mul; positive: Product);
-impl_op!(Div; div; negative: Product);
+impl Sub for Dim {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            expr: self.expr - rhs.expr,
+            eq_constraints: vec![],
+        }
+    }
+}
 
-impl_op!(Add; add; usize);
-impl_op!(Sub; sub; usize);
-impl_op!(Mul; mul; usize);
-impl_op!(Div; div; usize);
+impl Mul for Dim {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self {
+            expr: self.expr * rhs.expr,
+            eq_constraints: vec![],
+        }
+    }
+}
+
+impl Div for Dim {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self::Output {
+        Self {
+            expr: self.expr / rhs.expr,
+            eq_constraints: vec![],
+        }
+    }
+}
+
+impl Add<usize> for Dim {
+    type Output = Self;
+    fn add(self, rhs: usize) -> Self::Output {
+        self + Self::from(rhs)
+    }
+}
+
+impl Sub<usize> for Dim {
+    type Output = Self;
+    fn sub(self, rhs: usize) -> Self::Output {
+        self - Self::from(rhs)
+    }
+}
+
+impl Mul<usize> for Dim {
+    type Output = Self;
+    fn mul(self, rhs: usize) -> Self::Output {
+        self * Self::from(rhs)
+    }
+}
+
+impl Div<usize> for Dim {
+    type Output = Self;
+    fn div(self, rhs: usize) -> Self::Output {
+        self / Self::from(rhs)
+    }
+}
+
+impl PartialEq for Dim {
+    fn eq(&self, other: &Self) -> bool {
+        self.expr == other.expr
+    }
+
+    #[allow(clippy::partialeq_ne_impl)]
+    fn ne(&self, other: &Self) -> bool {
+        self.expr != other.expr
+    }
+}

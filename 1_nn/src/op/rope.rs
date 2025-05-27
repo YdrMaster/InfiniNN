@@ -12,13 +12,26 @@ impl Operator for Rope {
         match inputs {
             [x, pos, sin, cos] => {
                 dims!([_n, _d] = x);
-                dims!([_n] = pos);
-                dims!([_nctx, _dh_2] = sin);
-                dims!([_nctx, _dh_2] = cos);
+                dims!([n_pos] = pos);
+                dims!([n_ctx_sin, dh_2_sin] = sin);
+                dims!([n_ctx_cos, dh_2_cos] = cos);
 
-                // TODO 判断正确性
+                // Check if context lengths match
+                if n_ctx_sin != n_ctx_cos {
+                    return Err(OpError::ShapeMismatch);
+                }
 
-                Ok(vec![x.clone()])
+                // Check if half embedding dimensions match
+                if dh_2_sin != dh_2_cos {
+                    return Err(OpError::ShapeMismatch);
+                }
+
+                let mut x = x.clone();
+                if !x.shape[0].check_eq(n_pos) {
+                    return Err(OpError::ShapeMismatch);
+                }
+
+                Ok(vec![x])
             }
             _ => Err(OpError::ShapeError),
         }

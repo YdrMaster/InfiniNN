@@ -35,12 +35,13 @@ impl Operator for Split {
             return Err(OpError::ShapeError);
         }
 
-        let sum = parts
-            .iter()
-            .fold(Dim::Constant(0), |acc, p| acc + p.clone());
+        let sum = parts.iter().fold(Dim::from(0), |acc, p| acc + p.clone());
 
-        let c = shape[axis].clone() / sum;
-        //TODO 需要检查parts的和是否等于shape[axis]
+        let c = shape[axis].clone() / sum.clone();
+        if c.clone() * sum != shape[axis] {
+            return Err(OpError::ShapeMismatch);
+        }
+
         Ok(parts
             .into_iter()
             .map(|p| {
