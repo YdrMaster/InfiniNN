@@ -2,10 +2,7 @@
 //!
 //! 考虑到形状运算的实际情况，只支持多项式的运算。
 
-use std::{
-    collections::{BTreeSet, HashMap},
-    ops::{Add, Div, Mul, Sub},
-};
+use std::collections::{BTreeSet, HashMap};
 use symbolic_expr::Expr;
 
 /// 形状的一个维度，或参与维度运算的值。
@@ -25,21 +22,8 @@ pub struct Dim {
     eq_constraints: Vec<Expr>,
 }
 
-impl Default for Dim {
-    fn default() -> Self {
-        Self {
-            expr: Expr::Constant(0),
-            eq_constraints: vec![],
-        }
-    }
-}
-
 impl Dim {
     /// 统计表达式中出现的变量名。
-    pub fn variables(&self) -> BTreeSet<&str> {
-        self.expr.variables()
-    }
-
     pub fn append_variables<'s>(&'s self, set: &mut BTreeSet<&'s str>) {
         self.expr.append_variables(set);
     }
@@ -76,101 +60,6 @@ impl Dim {
     }
 }
 
-impl From<usize> for Dim {
-    fn from(value: usize) -> Self {
-        Self {
-            expr: Expr::from(value),
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl From<&str> for Dim {
-    fn from(value: &str) -> Self {
-        Self {
-            expr: Expr::from(value),
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl From<String> for Dim {
-    fn from(value: String) -> Self {
-        Self {
-            expr: Expr::from(value),
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl Add for Dim {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            expr: self.expr + rhs.expr,
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl Sub for Dim {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self {
-            expr: self.expr - rhs.expr,
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl Mul for Dim {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            expr: self.expr * rhs.expr,
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl Div for Dim {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output {
-        Self {
-            expr: self.expr / rhs.expr,
-            eq_constraints: vec![],
-        }
-    }
-}
-
-impl Add<usize> for Dim {
-    type Output = Self;
-    fn add(self, rhs: usize) -> Self::Output {
-        self + Self::from(rhs)
-    }
-}
-
-impl Sub<usize> for Dim {
-    type Output = Self;
-    fn sub(self, rhs: usize) -> Self::Output {
-        self - Self::from(rhs)
-    }
-}
-
-impl Mul<usize> for Dim {
-    type Output = Self;
-    fn mul(self, rhs: usize) -> Self::Output {
-        self * Self::from(rhs)
-    }
-}
-
-impl Div<usize> for Dim {
-    type Output = Self;
-    fn div(self, rhs: usize) -> Self::Output {
-        self / Self::from(rhs)
-    }
-}
-
 impl PartialEq for Dim {
     fn eq(&self, other: &Self) -> bool {
         self.expr == other.expr
@@ -181,3 +70,49 @@ impl PartialEq for Dim {
         self.expr != other.expr
     }
 }
+
+macro_rules! impl_ {
+    (from: $ty:ty) => {
+        impl From<$ty> for Dim {
+            fn from(value: $ty) -> Self {
+                Self {
+                    expr: value.into(),
+                    eq_constraints: Vec::new(),
+                }
+            }
+        }
+    };
+
+    (op: $trait:ident, $fn:ident) => {
+        impl std::ops::$trait for Dim {
+            type Output = Self;
+            fn $fn(self, rhs: Self) -> Self::Output {
+                Self {
+                    expr: self.expr.$fn(rhs.expr),
+                    eq_constraints: Vec::new(),
+                }
+            }
+        }
+    };
+
+    (num-op: $trait:ident, $fn:ident) => {
+        impl std::ops::$trait<usize> for Dim {
+            type Output = Self;
+            fn $fn(self, rhs: usize) -> Self::Output {
+                self.$fn(Self::from(rhs))
+            }
+        }
+    };
+}
+
+impl_!(from: usize);
+impl_!(from: &str);
+impl_!(from: String);
+impl_!(op: Add, add);
+impl_!(op: Sub, sub);
+impl_!(op: Mul, mul);
+impl_!(op: Div, div);
+impl_!(num-op: Add, add);
+impl_!(num-op: Sub, sub);
+impl_!(num-op: Mul, mul);
+impl_!(num-op: Div, div);

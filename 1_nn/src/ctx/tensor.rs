@@ -46,7 +46,7 @@ impl TensorMeta {
         let group = dt.group_size();
         if group > 1 {
             if let Some(dim) = shape.last_mut() {
-                *dim = std::mem::take(dim) / group
+                *dim = std::mem::replace(dim, Dim::from(0)) / group
             }
         }
         Self { dt, shape }
