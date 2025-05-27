@@ -13,11 +13,11 @@ use symbolic_expr::Expr;
 /// ```rust
 /// # use std::collections::HashMap;
 /// # use arg::Dim;
-/// let a = Dim::var("a");
-/// let b = Dim::var("b");
+/// let a = Dim::from("a");
+/// let b = Dim::from("b");
 /// let _1 = Dim::from(1);
 /// let expr = (a + _1 - 2) * 3 / (b + 1);
-/// assert_eq!(expr.substitute(&HashMap::from([("a", 8), ("b", 6)])), 3);
+/// assert_eq!(expr.substitute(&HashMap::from([("a", 8), ("b", 6)])), Some(3));
 /// ```
 #[derive(Clone, Debug)]
 pub struct Dim {
