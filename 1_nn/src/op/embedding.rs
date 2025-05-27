@@ -1,3 +1,5 @@
+use arg::make_eq;
+
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
 
@@ -20,14 +22,8 @@ impl Operator for Embedding {
                 dims!([_, _d] = wpe);
                 dims!([_n] = pos);
 
-                let mut d = d.clone();
-                let mut n = n.clone();
-                if !d.check_eq(_d) {
-                    return Err(OpError::ShapeMismatch);
-                }
-                if !n.check_eq(_n) {
-                    return Err(OpError::ShapeMismatch);
-                }
+                let d = make_eq(&[d, _d]).ok_or(OpError::ShapeMismatch)?;
+                let n = make_eq(&[n, _n]).ok_or(OpError::ShapeMismatch)?;
 
                 Ok(vec![TensorMeta::new(wte.dt, [n, d])])
             }

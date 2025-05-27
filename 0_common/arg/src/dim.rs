@@ -46,18 +46,22 @@ impl Dim {
             _ => panic!("Dim is not a constant"),
         }
     }
+}
 
-    pub fn check_eq(&mut self, other: &Self) -> bool {
-        if self.expr == other.expr {
-            true
-        } else if self.expr != other.expr {
-            false
-        } else {
-            self.eq_constraints
-                .push(self.expr.clone() - other.expr.clone());
-            true
+/// 接受一堆应该相等的 Dim（通常是 2 个），生成一个带有相等约束的新 Dim，如果判断恒不等则返回 None
+pub fn make_eq(dims: &[&Dim]) -> Option<Dim> {
+    let mut dim = dims[0].clone();
+    for other in dims[1..].iter() {
+        if dim.expr == other.expr {
+            continue;
         }
+        if dim.expr != other.expr {
+            return None;
+        }
+        dim.eq_constraints
+            .push(dim.expr.clone() - other.expr.clone());
     }
+    Some(dim)
 }
 
 impl PartialEq for Dim {

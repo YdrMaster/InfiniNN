@@ -1,3 +1,5 @@
+use arg::make_eq;
+
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
 
@@ -14,15 +16,10 @@ impl Operator for SwiGLU {
         dims!([_n, _d] = gate);
         dims!([n_up, d_up] = up);
 
-        let mut gate = gate.clone();
-        if !gate.shape[0].check_eq(n_up) {
-            return Err(OpError::ShapeMismatch);
-        }
-        if !gate.shape[1].check_eq(d_up) {
-            return Err(OpError::ShapeMismatch);
-        }
+        let n_up = make_eq(&[&gate.shape[0], n_up]).ok_or(OpError::ShapeMismatch)?;
+        let d_up = make_eq(&[&gate.shape[1], d_up]).ok_or(OpError::ShapeMismatch)?;
 
-        Ok(vec![gate])
+        Ok(vec![TensorMeta::new(gate.dt, [n_up, d_up])])
     }
 }
 

@@ -1,3 +1,5 @@
+use arg::make_eq;
+
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
 
@@ -14,12 +16,9 @@ impl Operator for RmsNorm {
                 dims!([_n, _d] = x);
                 dims!([_d] = scale);
 
-                let mut x = x.clone();
-                if !x.shape[1].check_eq(&scale.shape[0]) {
-                    return Err(OpError::ShapeMismatch);
-                }
+                let _d = make_eq(&[&x.shape[1], &scale.shape[0]]).ok_or(OpError::ShapeMismatch)?;
 
-                Ok(vec![x])
+                Ok(vec![TensorMeta::new(x.dt, [_n.clone(), _d])])
             }
             _ => Err(OpError::ShapeError),
         }
@@ -39,15 +38,9 @@ impl Operator for LayerNorm {
                 dims!([_d] = scale);
                 dims!([_d] = bias);
 
-                let mut x = x.clone();
-                if !x.shape[1].check_eq(&scale.shape[0]) {
-                    return Err(OpError::ShapeMismatch);
-                }
-                if !x.shape[1].check_eq(&bias.shape[0]) {
-                    return Err(OpError::ShapeMismatch);
-                }
-
-                Ok(vec![x])
+                let _d = make_eq(&[&x.shape[1], &scale.shape[0], &bias.shape[0]])
+                    .ok_or(OpError::ShapeMismatch)?;
+                Ok(vec![TensorMeta::new(x.dt, [_n.clone(), _d])])
             }
             _ => Err(OpError::ShapeError),
         }
