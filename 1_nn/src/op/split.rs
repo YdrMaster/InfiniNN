@@ -35,9 +35,7 @@ impl Operator for Split {
             return Err(OpError::ShapeError);
         }
 
-        let sum = parts
-            .iter()
-            .fold(Dim::from(0), |acc, p| acc + p.clone());
+        let sum = parts.iter().fold(Dim::from(0), |acc, p| acc + p.clone());
 
         let c = shape[axis].clone() / sum.clone();
         if c.clone() * sum != shape[axis] {

@@ -16,7 +16,6 @@ impl Operator for Attention {
                 dims!([n_v, _dv] = v);
 
                 // Check if all inputs have the same batch size
-                
 
                 let mut q = q.clone();
                 if !q.shape[0].check_eq(n_q) {

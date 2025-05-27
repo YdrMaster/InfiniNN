@@ -1,4 +1,4 @@
-﻿//! 简单的符号运算系统，用于将形状符号化。
+//! 简单的符号运算系统，用于将形状符号化。
 //!
 //! 考虑到形状运算的实际情况，只支持多项式的运算。
 
@@ -20,7 +20,7 @@ use symbolic_expr::Expr;
 /// assert_eq!(expr.substitute(&HashMap::from([("a", 8), ("b", 6)])), 3);
 /// ```
 #[derive(Clone, Debug)]
-pub struct Dim{
+pub struct Dim {
     expr: Expr,
     eq_constraints: Vec<Expr>,
 }
@@ -35,7 +35,6 @@ impl Default for Dim {
 }
 
 impl Dim {
-
     /// 统计表达式中出现的变量名。
     pub fn variables(&self) -> BTreeSet<&str> {
         self.expr.variables()
@@ -46,9 +45,11 @@ impl Dim {
     }
 
     pub fn substitute(&self, value: &HashMap<&str, usize>) -> Option<usize> {
-        if self.eq_constraints.iter().any(|constraint| {
-            constraint.substitute(value) != 0
-        }) {
+        if self
+            .eq_constraints
+            .iter()
+            .any(|constraint| constraint.substitute(value) != 0)
+        {
             None
         } else {
             Some(self.expr.substitute(value))
@@ -68,7 +69,8 @@ impl Dim {
         } else if self.expr != other.expr {
             false
         } else {
-            self.eq_constraints.push(self.expr.clone() - other.expr.clone());
+            self.eq_constraints
+                .push(self.expr.clone() - other.expr.clone());
             true
         }
     }
@@ -169,7 +171,6 @@ impl Div<usize> for Dim {
     }
 }
 
-
 impl PartialEq for Dim {
     fn eq(&self, other: &Self) -> bool {
         self.expr == other.expr
@@ -180,5 +181,3 @@ impl PartialEq for Dim {
         self.expr != other.expr
     }
 }
-
-

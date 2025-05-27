@@ -5,4 +5,4 @@ edition.workspace = true
 authors = ["YdrMaster <ydrml@hotmail.com>"]
 
 [dependencies]
-symbolic-expr = { git = "https://github.com/Ceng23333/symbolic-expr.git", branch = "main" }
+symbolic-expr = { git = "https://github.com/Ceng23333/symbolic-expr.git", rev = "ece2d88" }

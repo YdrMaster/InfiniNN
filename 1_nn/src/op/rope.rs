@@ -12,7 +12,7 @@ impl Operator for Rope {
         match inputs {
             [x, pos, sin, cos] => {
                 dims!([_n, _d] = x);
-                dims!([n_pos] = pos);                
+                dims!([n_pos] = pos);
                 dims!([n_ctx_sin, dh_2_sin] = sin);
                 dims!([n_ctx_cos, dh_2_cos] = cos);
 
@@ -26,12 +26,10 @@ impl Operator for Rope {
                     return Err(OpError::ShapeMismatch);
                 }
 
-            
                 let mut x = x.clone();
                 if !x.shape[0].check_eq(n_pos) {
                     return Err(OpError::ShapeMismatch);
                 }
-
 
                 Ok(vec![x])
             }

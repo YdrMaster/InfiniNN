@@ -13,7 +13,7 @@ impl Operator for SwiGLU {
 
         dims!([_n, _d] = gate);
         dims!([n_up, d_up] = up);
-        
+
         let mut gate = gate.clone();
         if !gate.shape[0].check_eq(n_up) {
             return Err(OpError::ShapeMismatch);

@@ -45,7 +45,7 @@ impl Operator for LayerNorm {
                 }
                 if !x.shape[1].check_eq(&bias.shape[0]) {
                     return Err(OpError::ShapeMismatch);
-                }   
+                }
 
                 Ok(vec![x])
             }
