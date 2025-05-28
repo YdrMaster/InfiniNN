@@ -1,5 +1,6 @@
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
+use arg::make_eq;
 
 pub struct Attention;
 
@@ -16,19 +17,9 @@ impl Operator for Attention {
                 dims!([n_v, _dv] = v);
 
                 // Check if all inputs have the same batch size
+                let n_q = make_eq(&[&q.shape[0], n_q, n_k, n_v]).ok_or(OpError::ShapeMismatch)?;
 
-                let mut q = q.clone();
-                if !q.shape[0].check_eq(n_q) {
-                    return Err(OpError::ShapeMismatch);
-                }
-                if !q.shape[0].check_eq(n_k) {
-                    return Err(OpError::ShapeMismatch);
-                }
-                if !q.shape[0].check_eq(n_v) {
-                    return Err(OpError::ShapeMismatch);
-                }
-
-                Ok(vec![q.clone()])
+                Ok(vec![TensorMeta::new(q.dt, [n_q, _dq.clone()])])
             }
             _ => Err(OpError::ShapeError),
         }

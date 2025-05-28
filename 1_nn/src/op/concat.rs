@@ -1,5 +1,6 @@
-﻿use super::{OpError, Operator};
+use super::{OpError, Operator};
 use crate::{Arg, Dim, TensorMeta};
+use arg::make_eq;
 
 pub struct Concat;
 
@@ -13,24 +14,20 @@ impl Operator for Concat {
         // TODO 判定其他维度相等
 
         let dt = inputs[0].dt;
-        let mut origin_shape = inputs[0].shape.to_vec();
+        let concat_shape = (0..inputs[0].shape.len())
+            .map(|i| {
+                if i == axis {
+                    Ok(inputs
+                        .iter()
+                        .map(|t| t.shape[axis].clone())
+                        .fold(Dim::from(0), |acc, d| acc + d))
+                } else {
+                    make_eq(&inputs.iter().map(|t| &t.shape[i]).collect::<Vec<_>>())
+                        .ok_or(OpError::ShapeMismatch)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        for (i, shape) in origin_shape.iter_mut().enumerate().take(inputs.len()) {
-            if i == axis {
-                continue;
-            }
-            if inputs.iter().any(|t| !shape.check_eq(&t.shape[i])) {
-                return Err(OpError::ShapeMismatch);
-            }
-        }
-
-        let axis_sum = inputs
-            .iter()
-            .map(|t| t.shape[axis].clone())
-            .fold(Dim::from(0), |acc, d| acc + d);
-
-        origin_shape[axis] = axis_sum;
-
-        Ok(vec![TensorMeta::new(dt, origin_shape)])
+        Ok(vec![TensorMeta::new(dt, concat_shape)])
     }
 }

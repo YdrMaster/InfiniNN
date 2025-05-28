@@ -1,5 +1,6 @@
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
+use arg::make_eq;
 
 pub struct Linear;
 
@@ -28,10 +29,7 @@ impl Operator for Linear {
                     return Err(OpError::ShapeMismatch);
                 }
                 let m = m.clone();
-                let mut n = n.clone();
-                if !n.check_eq(_n) {
-                    return Err(OpError::ShapeMismatch);
-                }
+                let n = make_eq(&[n, _n]).ok_or(OpError::ShapeMismatch)?;
                 Ok(vec![TensorMeta::new(x.dt, [m, n])])
             }
             [x, residual, w] => {
@@ -43,14 +41,8 @@ impl Operator for Linear {
                     return Err(OpError::ShapeMismatch);
                 }
 
-                let mut m = m.clone();
-                let mut n = n.clone();
-                if !m.check_eq(_m) {
-                    return Err(OpError::ShapeMismatch);
-                }
-                if !n.check_eq(_n) {
-                    return Err(OpError::ShapeMismatch);
-                }
+                let m = make_eq(&[m, _m]).ok_or(OpError::ShapeMismatch)?;
+                let n = make_eq(&[n, _n]).ok_or(OpError::ShapeMismatch)?;
                 Ok(vec![TensorMeta::new(x.dt, [m, n])])
             }
             [x, residual, w, b] => {
@@ -63,14 +55,8 @@ impl Operator for Linear {
                     return Err(OpError::ShapeMismatch);
                 }
 
-                let mut m = m.clone();
-                let mut n = n.clone();
-                if !m.check_eq(_m) {
-                    return Err(OpError::ShapeMismatch);
-                }
-                if !n.check_eq(_n) {
-                    return Err(OpError::ShapeMismatch);
-                }
+                let m = make_eq(&[m, _m]).ok_or(OpError::ShapeMismatch)?;
+                let n = make_eq(&[n, _n]).ok_or(OpError::ShapeMismatch)?;
                 Ok(vec![TensorMeta::new(x.dt, [m, n])])
             }
             _ => Err(OpError::ShapeError),

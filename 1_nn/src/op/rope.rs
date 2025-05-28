@@ -1,5 +1,6 @@
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
+use arg::make_eq;
 
 pub struct Rope;
 
@@ -26,12 +27,9 @@ impl Operator for Rope {
                     return Err(OpError::ShapeMismatch);
                 }
 
-                let mut x = x.clone();
-                if !x.shape[0].check_eq(n_pos) {
-                    return Err(OpError::ShapeMismatch);
-                }
+                let _n = make_eq(&[&x.shape[0], n_pos]).ok_or(OpError::ShapeMismatch)?;
 
-                Ok(vec![x])
+                Ok(vec![TensorMeta::new(x.dt, [_n, _d.clone()])])
             }
             _ => Err(OpError::ShapeError),
         }

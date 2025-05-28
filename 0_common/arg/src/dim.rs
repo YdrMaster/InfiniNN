@@ -46,18 +46,40 @@ impl Dim {
             _ => panic!("Dim is not a constant"),
         }
     }
+}
 
-    pub fn check_eq(&mut self, other: &Self) -> bool {
-        if self.expr == other.expr {
-            true
-        } else if self.expr != other.expr {
-            false
-        } else {
-            self.eq_constraints
-                .push(self.expr.clone() - other.expr.clone());
-            true
+/// 从多个 `Dim` 引用创建一个带有相等约束的新 `Dim`。
+///
+/// 此函数接收多个应该相等的 `Dim` 表达式，并生成一个新的带有相等约束的 `Dim`。
+/// 返回的 `Dim` 将继承第一个输入的表达式，并添加确保所有输入相等的约束。
+///
+/// # 参数
+///
+/// * `dims` - 一个包含多个应该相等的 `Dim` 引用的切片
+///
+/// # 返回值
+///
+/// * `Some(Dim)` - 如果表达式可以相等；如果表达式恒等，返回一个不带约束的`Dim`，否则，返回一个带有相等约束的新 `Dim`，相等约束会在substitute时被计算
+/// * `None` - 如果表达式被判定为永远不相等
+///
+/// # Panic
+///
+/// 当 `dims` 长度小于 2 时会发生 panic
+pub fn make_eq(dims: &[&Dim]) -> Option<Dim> {
+    assert!(dims.len() > 1);
+    let mut dim = dims[0].clone();
+    for other in dims[1..].iter() {
+        let eq = dim.expr.equivalent(&other.expr);
+        match eq {
+            Some(true) => continue,
+            Some(false) => return None,
+            None => {
+                dim.eq_constraints
+                    .push(dim.expr.clone() - other.expr.clone());
+            }
         }
     }
+    Some(dim)
 }
 
 impl PartialEq for Dim {
