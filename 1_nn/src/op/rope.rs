@@ -1,7 +1,6 @@
-use arg::make_eq;
-
 use super::{OpError, Operator, macros::*};
 use crate::{Arg, TensorMeta};
+use arg::make_eq;
 
 pub struct Rope;
 
