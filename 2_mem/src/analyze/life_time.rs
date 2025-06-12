@@ -48,10 +48,10 @@ impl<T> Graph<T> {
             }
             let NodeRef { inputs, outputs } = topo;
             for &input in inputs {
-                analyzer.push(i, edges[input].get())
+                analyzer.record(edges[input].get(), i)
             }
             for output in outputs {
-                analyzer.push(i, edges[output].get())
+                analyzer.record(edges[output].get(), i)
             }
         }
         // 对生命周期排序
@@ -59,10 +59,14 @@ impl<T> Graph<T> {
     }
 }
 
+/// 块分析器
+///
+/// 一次遍历，记录所有块的生命周期区间。
 #[repr(transparent)]
 struct BlobAnalyzer<T>(HashMap<KeyWeak<Info<T>>, Range<usize>>);
 
 impl<T> BlobAnalyzer<T> {
+    /// 初始化分析器，标记全图输入输出块的生命周期。
     fn new<'a>(
         n_node: usize,
         inputs: impl IntoIterator<Item = &'a Rc<Info<T>>>,
@@ -73,40 +77,35 @@ impl<T> BlobAnalyzer<T> {
     {
         let mut ans = Self(HashMap::new());
         for blob in inputs {
-            if let Some(record) = ans.get_or_insert(blob) {
-                record.start = 0
-            }
+            ans.record(blob, 0)
         }
         for blob in outputs {
-            if let Some(record) = ans.get_or_insert(blob) {
-                record.end = n_node
-            }
+            ans.record(blob, n_node)
         }
         ans
     }
 
-    fn push(&mut self, i_node: usize, blob: &Rc<Info<T>>) {
-        if let Some(record) = self.get_or_insert(blob) {
-            record.start = record.start.min(i_node);
-            record.end = record.end.max(i_node);
+    /// 标记 `blob` 在第 `i_node` 号节点处仍存在。
+    fn record(&mut self, blob: &Rc<Info<T>>, i_node: usize) {
+        if let Info::Internal(_) = **blob {
+            use std::collections::hash_map::Entry::{Occupied, Vacant};
+            match self.0.entry(KeyWeak::from(blob)) {
+                Occupied(mut entry) => {
+                    let record = entry.get_mut();
+                    *record = record.start.min(i_node)..record.end.max(i_node)
+                }
+                Vacant(entry) => {
+                    entry.insert(i_node..i_node);
+                }
+            }
         }
     }
 
+    /// 提取分析结果。
     fn take(self) -> Box<[BlobLifeTime<T>]> {
         self.0
             .into_iter()
             .map(|(blob, life_time)| BlobLifeTime { blob, life_time })
-            .collect::<Box<_>>()
-    }
-
-    fn get_or_insert<'a>(&'a mut self, blob: &Rc<Info<T>>) -> Option<&'a mut Range<usize>> {
-        match **blob {
-            Info::Internal(_) => Some(
-                self.0
-                    .entry(KeyWeak::from(blob))
-                    .or_insert_with(|| super::EMPTY_RANGE),
-            ),
-            _ => None,
-        }
+            .collect()
     }
 }
