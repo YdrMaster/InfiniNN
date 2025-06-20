@@ -9,6 +9,7 @@ mod mlp;
 mod normalization;
 mod output_head;
 mod patch_embd;
+mod qw2vl_mmproj;
 mod transformer_blk;
 
 use crate::{
@@ -26,6 +27,8 @@ pub use merger::Merger;
 pub use mlp::Mlp;
 pub use normalization::{Normalization, Type as NormType};
 pub use output_head::OutputHead;
+pub use patch_embd::PatchEmbd;
+pub use qw2vl_mmproj::Qwen2VLmmproj;
 pub use transformer_blk::TransformerBlk;
 
 pub trait NuralNetwork<T>: Sized {
