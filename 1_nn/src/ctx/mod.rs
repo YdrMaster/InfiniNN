@@ -1,5 +1,6 @@
 ﻿mod internal;
 mod nn_ctx;
+mod stack;
 mod tensor;
 
 use crate::op::Operator;
