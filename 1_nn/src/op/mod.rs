@@ -7,6 +7,7 @@ pub mod concat;
 pub mod conv;
 pub mod embedding;
 pub mod linear;
+pub mod mrope;
 pub mod normalization;
 pub mod rope;
 pub mod split;
