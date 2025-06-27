@@ -1,12 +1,11 @@
-﻿use super::internal::Internal;
+﻿use super::Context;
 use crate::Dim;
-use std::{cell::RefCell, rc::Weak};
 use tensor::digit_layout::DigitLayout;
 
 /// 计算图层张量
 pub struct Tensor<T> {
     pub(super) idx: usize,
-    pub(super) ctx: Weak<RefCell<Internal<T>>>,
+    pub(super) ctx: Context<T>,
 }
 
 impl<T> Clone for Tensor<T> {
@@ -30,7 +29,7 @@ impl<T> Tensor<T> {
     }
 
     fn meta(&self) -> TensorMeta {
-        self.ctx.upgrade().unwrap().borrow().tensor(self.idx)
+        self.ctx.get_meta(self.idx)
     }
 }
 

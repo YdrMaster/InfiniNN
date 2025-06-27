@@ -1,12 +1,11 @@
-﻿mod internal;
-mod nn_ctx;
-mod stack;
+﻿mod graph;
+mod name;
 mod tensor;
 
 use crate::op::Operator;
 use std::{borrow::Borrow, cell::RefCell, collections::HashMap, hash::Hash, rc::Rc};
 
-pub use nn_ctx::Context;
+pub use graph::Context;
 pub use tensor::{Tensor, TensorMeta};
 
 #[derive(Default)]

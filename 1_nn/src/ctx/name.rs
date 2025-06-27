@@ -1,10 +1,9 @@
-﻿use std::{cell::RefCell, collections::HashMap, rc::Rc};
+﻿use std::collections::HashMap;
 
-#[derive(Clone)]
 #[repr(transparent)]
-pub(super) struct Stack(Rc<RefCell<Vec<Rc<RefCell<Frame>>>>>);
+pub(super) struct Namespace(Vec<NameFrame>);
 
-pub(super) struct Frame {
+pub(super) struct NameFrame {
     path: String,
     pub tensor: NameDecorator,
     pub sub_nn: NameDecorator,
@@ -15,38 +14,41 @@ pub(super) struct Frame {
 #[repr(transparent)]
 pub(super) struct NameDecorator(HashMap<String, usize>);
 
-impl Stack {
+impl Namespace {
     pub fn new(root: impl ToString) -> Self {
-        Self(Rc::new(RefCell::new(vec![Frame::new(root.to_string())])))
+        Self(vec![NameFrame::new(root.to_string())])
     }
 
-    pub fn top(&self) -> Rc<RefCell<Frame>> {
-        self.0.borrow().last().unwrap().clone()
+    pub fn top(&self) -> &NameFrame {
+        self.0.last().unwrap()
     }
 
-    pub fn push(&self, name: impl ToString) {
-        let mut stack = self.0.borrow_mut();
+    pub fn top_mut(&mut self) -> &mut NameFrame {
+        self.0.last_mut().unwrap()
+    }
+
+    pub fn push(&mut self, name: impl ToString) {
         let path = {
-            let mut top = stack.last_mut().unwrap().borrow_mut();
+            let top = self.0.last_mut().unwrap();
             let name = top.sub_nn.decorate(name.to_string());
             format!("{}.{}", top.path, name)
         };
-        stack.push(Frame::new(path))
+        self.0.push(NameFrame::new(path))
     }
 
-    pub fn pop(&self) {
-        self.0.borrow_mut().pop();
+    pub fn pop(&mut self) {
+        self.0.pop();
     }
 }
 
-impl Frame {
-    fn new(path: String) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
+impl NameFrame {
+    fn new(path: String) -> Self {
+        Self {
             path,
             tensor: Default::default(),
             sub_nn: Default::default(),
             operator: Default::default(),
-        }))
+        }
     }
 
     pub fn path(&self) -> &str {
