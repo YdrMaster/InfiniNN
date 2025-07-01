@@ -64,7 +64,7 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                             dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
                         ),
                         rope: Some(::nn::RoPE {
-                            multimodal: false,
+                            type_: ::nn::RoPEType::Normal,
                             nctx,
                             sin: "sin_table".into(),
                             cos: "cos_table".into(),
