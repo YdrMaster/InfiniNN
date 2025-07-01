@@ -1,25 +1,18 @@
-﻿use super::{Context, Distribution, Linear, NNError, NuralNetwork, TPTensor, Tensor, macros::*};
+﻿use super::{
+    Context, Distribution, Linear, NNError, NuralNetwork, RoPE, TPTensor, Tensor, macros::*,
+};
 use crate::{
     Arg, TPAction,
     weight_types::{AttnQKV, RowTPWeight},
 };
-use tensor::digit_layout::types;
 
 #[derive(Clone)]
 pub struct Attention<T> {
     pub nh: usize,
     pub nkvh: usize,
     pub qkv: Linear<T>,
-    pub rope: Option<RoPE<T>>,
+    pub rope: Option<[RoPE<T>; 2]>,
     pub output: Linear<T>,
-}
-
-#[derive(Clone)]
-pub struct RoPE<T> {
-    pub multimodal: bool,
-    pub nctx: usize,
-    pub sin: T,
-    pub cos: T,
 }
 
 impl<T> Attention<T> {
@@ -37,19 +30,7 @@ impl<T> Attention<T> {
             nh: nh / dist.total * dist.len,
             nkvh: nkvh / dist.total * dist.len,
             qkv: qkv.parallel(TPAction::new(AttnQKV(nh / nkvh), dist)),
-            rope: rope.map(
-                |RoPE {
-                     multimodal,
-                     nctx,
-                     sin,
-                     cos,
-                 }| RoPE {
-                    multimodal,
-                    nctx,
-                    sin: sin.into(),
-                    cos: cos.into(),
-                },
-            ),
+            rope: rope.map(|pair| pair.map(|rope| rope.tensor_parallel(dist))),
             output: output.parallel(TPAction::new(RowTPWeight, dist)),
         }
     }
@@ -91,27 +72,10 @@ impl<T> NuralNetwork<T> for Attention<T> {
         );
 
         let [q, k] = match rope {
-            Some(RoPE {
-                multimodal,
-                nctx,
-                sin,
-                cos,
-            }) => {
-                let shape = [nctx.into(), dh.clone() / 2];
-                let sin = ctx.load_external("rope.sin", types::F32, shape.clone(), sin);
-                let cos = ctx.load_external("rope.cos", types::F32, shape, cos);
-
-                let op = if multimodal { "mrope" } else { "rope" };
-                destruct!(
-                    [q_] = ctx.call(
-                        "attn-q-rope",
-                        op,
-                        None,
-                        [q, pos.clone(), sin.clone(), cos.clone()]
-                    )?
-                );
-                destruct!([k_] = ctx.call("attn-k-rope", op, None, [k, pos, sin, cos])?);
-                [q_, k_]
+            Some([qrope, krope]) => {
+                destruct!([q] = ctx.trap("qrope", qrope, [q, pos.clone()])?);
+                destruct!([k] = ctx.trap("krope", krope, [k, pos.clone()])?);
+                [q, k]
             }
             None => [q, k],
         };

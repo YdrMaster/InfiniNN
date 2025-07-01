@@ -10,6 +10,7 @@ mod normalization;
 mod output_head;
 mod patch_embd;
 mod qw2vl_mmproj;
+mod rope;
 mod transformer_blk;
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
 };
 
 pub use activation::Activation;
-pub use attention::{Attention, RoPE};
+pub use attention::Attention;
 pub use distribution::{Distribution, TPAction, TPTensor, WeightType, weight_types};
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
@@ -29,6 +30,7 @@ pub use normalization::{Normalization, Type as NormType};
 pub use output_head::OutputHead;
 pub use patch_embd::PatchEmbd;
 pub use qw2vl_mmproj::Qwen2VLmmproj;
+pub use rope::{RoPE, RoPEType};
 pub use transformer_blk::TransformerBlk;
 
 pub trait NuralNetwork<T>: Sized {
