@@ -1,4 +1,4 @@
-﻿use arg::Dim;
+use arg::Dim;
 use tensor::digit_layout::types;
 
 use super::{Context, Distribution, NNError, NuralNetwork, TPTensor, Tensor, macros::*};
