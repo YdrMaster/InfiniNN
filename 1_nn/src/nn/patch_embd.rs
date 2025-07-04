@@ -69,7 +69,7 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
         let tensors = ctx.call("", "conv", Some(false.into()), [x, w1]).unwrap();
         destruct!([patch_embd1] = tensors);
         let tensors = ctx
-            .call("", "add", None, [patch_embd, patch_embd1])
+            .call("", "add4d", None, [patch_embd, patch_embd1])
             .unwrap();
         destruct!([image_embd] = tensors);
 
