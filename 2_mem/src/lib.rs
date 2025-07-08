@@ -38,6 +38,9 @@ impl<T> Graph<T> {
         for (node, topo) in zip(&mut nodes, topo.iter()) {
             match &*node.value.name {
                 "split" => op::split(node, topo, &mut edges),
+                "tile" => op::tile(node, topo, &mut edges),
+                "merge" => op::merge(node, topo, &mut edges),
+                "transpose" => op::transpose(node, topo, &mut edges),
                 "concat" => op::concat(node, topo, &mut edges),
                 _ => {}
             }
