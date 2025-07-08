@@ -12,12 +12,23 @@ impl Operator for RmsNorm {
 
         match inputs {
             [x, scale] => {
-                dims!([_n, _d] = x);
-                dims!([_d] = scale);
-
-                let _d = make_eq(&[&x.shape[1], &scale.shape[0]]).ok_or(OpError::ShapeMismatch)?;
-
-                Ok(vec![TensorMeta::new(x.dt, [_n.clone(), _d])])
+                let (x_d, scale_d) = match x.shape().len() {
+                    2 => {
+                        dims!([_n, d] = x);
+                        dims!([d_] = scale);
+                        (d, d_)
+                    }
+                    3 => {
+                        dims!([_n, _, d] = x);
+                        dims!([d_] = scale);
+                        (d, d_)
+                    }
+                    _ => {
+                        return Err(OpError::ShapeError);
+                    }
+                };
+                let _d = make_eq(&[x_d, scale_d]).ok_or(OpError::ShapeMismatch)?;
+                Ok(vec![TensorMeta::new(x.dt, x.shape().to_vec())])
             }
             _ => Err(OpError::ShapeError),
         }

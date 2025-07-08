@@ -1,6 +1,9 @@
-﻿use super::{Context, Distribution, Linear, NNError, NuralNetwork, TPTensor, Tensor, macros::*};
+﻿use super::{
+    Context, Distribution, Linear, NNError, Normalization, NuralNetwork, TPTensor, Tensor,
+    macros::*,
+};
 use crate::{
-    Arg, TPAction,
+    Arg, Dim, TPAction,
     weight_types::{AttnQKV, RowTPWeight},
 };
 use tensor::digit_layout::types;
@@ -10,6 +13,8 @@ pub struct Attention<T> {
     pub nh: usize,
     pub nkvh: usize,
     pub qkv: Linear<T>,
+    pub q_norm: Option<Normalization<T>>,
+    pub k_norm: Option<Normalization<T>>,
     pub rope: Option<RoPE<T>>,
     pub output: Linear<T>,
 }
@@ -28,6 +33,8 @@ impl<T> Attention<T> {
             nh,
             nkvh,
             qkv,
+            q_norm,
+            k_norm,
             rope,
             output,
         } = self;
@@ -37,6 +44,8 @@ impl<T> Attention<T> {
             nh: nh / dist.total * dist.len,
             nkvh: nkvh / dist.total * dist.len,
             qkv: qkv.parallel(TPAction::new(AttnQKV(nh / nkvh), dist)),
+            q_norm: q_norm.map(|norm| norm.tensor_parallel()),
+            k_norm: k_norm.map(|norm| norm.tensor_parallel()),
             rope: rope.map(
                 |RoPE {
                      multimodal,
@@ -67,10 +76,11 @@ impl<T> NuralNetwork<T> for Attention<T> {
             nh,
             nkvh,
             qkv,
+            q_norm,
+            k_norm,
             rope,
             output,
         } = self;
-
         destruct!([x] = ctx.trap("attn-qkv", qkv, [x])?);
         dims!([_, dqkv] = x);
         let dh = dqkv.clone() / (nh + nkvh + nkvh);
@@ -89,6 +99,78 @@ impl<T> NuralNetwork<T> for Attention<T> {
                 [x],
             )?
         );
+
+        // Apply normalization to q and k if they exist
+        let q = match q_norm {
+            Some(norm) => {
+                destruct!(
+                    [q] = ctx.call(
+                        "",
+                        "tile",
+                        Some(Arg::dict([
+                            ("axis".into(), Arg::int(1)),
+                            (
+                                "tile".into(),
+                                Arg::arr([Dim::from(nh), dh.clone()].map(Arg::from))
+                            ),
+                        ])),
+                        [q],
+                    )?
+                );
+                destruct!([q] = ctx.trap("attn-q-norm", norm, [q])?);
+
+                destruct!(
+                    [q] = ctx
+                        .call(
+                            "",
+                            "merge",
+                            Some(Arg::dict([
+                                ("start".into(), Arg::int(1)),
+                                ("len".into(), Arg::int(2),)
+                            ])),
+                            [q],
+                        )
+                        .unwrap()
+                );
+                q
+            }
+            None => q,
+        };
+
+        let k = match k_norm {
+            Some(norm) => {
+                destruct!(
+                    [k] = ctx.call(
+                        "",
+                        "tile",
+                        Some(Arg::dict([
+                            ("axis".into(), Arg::int(1)),
+                            (
+                                "tile".into(),
+                                Arg::arr([Dim::from(nkvh), dh.clone()].map(Arg::from))
+                            ),
+                        ])),
+                        [k],
+                    )?
+                );
+                destruct!([k] = ctx.trap("attn-k-norm", norm, [k])?);
+                destruct!(
+                    [k] = ctx
+                        .call(
+                            "",
+                            "merge",
+                            Some(Arg::dict([
+                                ("start".into(), Arg::int(1)),
+                                ("len".into(), Arg::int(2),)
+                            ])),
+                            [k],
+                        )
+                        .unwrap()
+                );
+                k
+            }
+            None => k,
+        };
 
         let [q, k] = match rope {
             Some(RoPE {
