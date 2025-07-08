@@ -1,6 +1,6 @@
 use super::{Context, Distribution, NNError, NuralNetwork, TPTensor, Tensor, macros::destruct};
 use crate::macros::dims;
-use arg::Arg;
+use arg::{Arg, Dim};
 use tensor::digit_layout::DigitLayout;
 
 #[derive(Clone)]
@@ -41,28 +41,25 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
     ) -> Result<(Context<T>, Vec<Tensor<T>>), NNError> {
         destruct!([x] = inputs);
 
-        dims!([n, c, h, w] = x);
-        let [n, c, height, width] = [n, c, h, w].map(|v| v.to_usize());
+        dims!([n, _c, height, width] = x);
         let Self {
             dt,
             shape,
             patch_embd,
             patch_embd1,
         } = self;
-        let [m, ck, hk, wk] = shape;
-        assert_eq!(n, 1);
-        assert_eq!(c, ck);
-        assert_eq!(hk, wk);
+        let [m, ck, hk, wk] = shape.map(Dim::from);
+        assert!(hk.eq(&wk));
         let w = ctx.load_external(
             "patch_embd",
             dt,
-            [m.into(), ck.into(), hk.into(), wk.into()],
+            [m.clone(), ck.clone(), hk.clone(), wk.clone()],
             patch_embd,
         );
         let w1 = ctx.load_external(
             "patch_embd1",
             dt,
-            [m.into(), ck.into(), hk.into(), wk.into()],
+            [m.clone(), ck.clone(), hk.clone(), wk.clone()],
             patch_embd1,
         );
         let tensors = ctx
@@ -78,8 +75,8 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
 
         // reshape
 
-        let hp = (height / hk) as u64; // h patches
-        let wp = (width / wk) as u64; // w patches
+        let hp = height.clone() / hk.clone(); // h patches
+        let wp = width.clone() / wk.clone(); // w patches
         // [n, m, hp, wp] -> [n, hp, wp, m]
         destruct!(
             [image_embd] = ctx
@@ -94,6 +91,7 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
                 )
                 .unwrap()
         );
+        // [n, hp, wp, m] -> [n * hp/2, 2, wp/2, 2*m]
         destruct!(
             [image_embd] = ctx
                 .call(
@@ -101,7 +99,10 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
                     "tile",
                     Some(Arg::dict([
                         ("axis".into(), Arg::int(1)),
-                        ("tiles".into(), Arg::arr([hp / 2, 2].map(Arg::from)),)
+                        (
+                            "tiles".into(),
+                            Arg::arr([hp.clone() / 2, Dim::from(2)].map(Arg::from)),
+                        )
                     ])),
                     [image_embd],
                 )
@@ -127,7 +128,10 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
                     "tile",
                     Some(Arg::dict([
                         ("axis".into(), Arg::int(2)),
-                        ("tiles".into(), Arg::arr([wp / 2, 2].map(Arg::from)),)
+                        (
+                            "tiles".into(),
+                            Arg::arr([wp / 2, Dim::from(2)].map(Arg::from)),
+                        )
                     ])),
                     [image_embd],
                 )
@@ -160,6 +164,7 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
                 )
                 .unwrap()
         );
+        // [n * hp/2, wp/2, 2, 2*m] -> [n, hp * wp, m]
         destruct!(
             [image_embd] = ctx
                 .call(
@@ -167,7 +172,10 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
                     "tile",
                     Some(Arg::dict([
                         ("axis".into(), Arg::int(0)),
-                        ("tiles".into(), Arg::arr([n as u64, hp / 2].map(Arg::from)),)
+                        (
+                            "tiles".into(),
+                            Arg::arr([n.clone(), hp.clone() / 2].map(Arg::from)),
+                        )
                     ])),
                     [image_embd],
                 )
@@ -193,7 +201,10 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
                     "tile",
                     Some(Arg::dict([
                         ("axis".into(), Arg::int(2)),
-                        ("tiles".into(), Arg::arr([2, m as u64].map(Arg::from)),)
+                        (
+                            "tiles".into(),
+                            Arg::arr([Dim::from(2), m.clone()].map(Arg::from)),
+                        )
                     ])),
                     [image_embd],
                 )
