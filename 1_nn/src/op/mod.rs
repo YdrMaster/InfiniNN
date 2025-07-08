@@ -7,10 +7,13 @@ pub mod concat;
 pub mod conv;
 pub mod embedding;
 pub mod linear;
+pub mod merge;
 pub mod mrope;
 pub mod normalization;
 pub mod rope;
 pub mod split;
+pub mod tile;
+pub mod transpose;
 
 /// 计算图层算子，只考虑形状推导
 pub trait Operator {
