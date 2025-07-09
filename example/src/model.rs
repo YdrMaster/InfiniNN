@@ -12,6 +12,7 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
     let dt_bias = match arch {
         "llama" => None,
         "qwen2" => Some(gguf.tensors["blk.0.attn_qkv.bias"].dt()),
+        "qwen3" => None,
         arch => panic!("unsupported arch {arch}"),
     };
 
@@ -21,7 +22,12 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
     let d = meta![gguf => llm_embedding_length];
     let nh = meta![gguf => llm_attention_head_count];
     let nkvh = meta![gguf => llm_attention_head_count_kv; nh];
-    let dh = meta![gguf => llm_rope_dimension_count; d / nh];
+    let dh = match arch {
+        "qwen3" => gguf.tensors["blk.0.attn_qkv.weight"].shape()[0]
+            .checked_div(nh + nkvh + nkvh)
+            .unwrap(),
+        _ => meta![gguf => llm_rope_dimension_count; d / nh],
+    };
     let di = meta![gguf => llm_feed_forward_length];
     let epsilon = meta![gguf => llm_attention_layer_norm_rms_epsilon; 1e-5];
     let dt_embd = gguf.tensors["token_embd.weight"].dt();
@@ -63,6 +69,36 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                             format!("blk.{iblk}.attn_qkv.weight"),
                             dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
                         ),
+                        q_norm: if gguf
+                            .tensors
+                            .contains_key(format!("blk.{iblk}.attn_q_norm.weight").as_str())
+                        {
+                            Some(::nn::Normalization {
+                                d: dh,
+                                epsilon: epsilon as _,
+                                items: ::nn::NormType::RmsNorm {
+                                    dt: dt_norm,
+                                    scale: format!("blk.{iblk}.attn_q_norm.weight"),
+                                },
+                            })
+                        } else {
+                            None
+                        },
+                        k_norm: if gguf
+                            .tensors
+                            .contains_key(format!("blk.{iblk}.attn_k_norm.weight").as_str())
+                        {
+                            Some(::nn::Normalization {
+                                d: dh,
+                                epsilon: epsilon as _,
+                                items: ::nn::NormType::RmsNorm {
+                                    dt: dt_norm,
+                                    scale: format!("blk.{iblk}.attn_k_norm.weight"),
+                                },
+                            })
+                        } else {
+                            None
+                        },
                         rope: Some(::nn::RoPE {
                             multimodal: false,
                             nctx,

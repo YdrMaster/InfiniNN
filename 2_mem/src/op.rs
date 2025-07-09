@@ -48,10 +48,10 @@ pub(crate) fn tile<T>(node: &mut Node, topo: NodeRef, edges: &mut [Edge<T>]) {
     };
     let tile = tile
         .iter()
-        .map(|p| {
-            if let Arg::Dim(dim) = p {
-                dim.to_usize()
-            } else {
+        .map(|p| match p {
+            Arg::Dim(dim) => dim.to_usize(),
+            Arg::Int(dim) => *dim as usize,
+            _ => {
                 unreachable!()
             }
         })

@@ -24,6 +24,8 @@ fn main() {
         .register_op("layer-norm", op::normalization::LayerNorm)
         .register_op("attention", op::attention::Attention)
         .register_op("split", op::split::Split)
+        .register_op("tile", op::tile::Tile)
+        .register_op("merge", op::merge::Merge)
         .register_op("swiglu", op::activation::SwiGLU)
         .register_op("gelu", op::activation::GeLU)
         .register_op("linear", op::linear::Linear)

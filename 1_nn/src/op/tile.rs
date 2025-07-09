@@ -43,7 +43,7 @@ impl Operator for Tile {
 
         let mut new_shape = shape[..axis].to_vec();
         new_shape.extend_from_slice(tile.as_slice());
-        new_shape.extend_from_slice(&shape[axis..]);
+        new_shape.extend_from_slice(&shape[axis + 1..]);
 
         Ok(vec![TensorMeta::new(x.dt, new_shape)])
     }
