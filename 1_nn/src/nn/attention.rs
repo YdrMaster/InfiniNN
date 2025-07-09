@@ -113,7 +113,11 @@ impl<T> NuralNetwork<T> for Attention<T> {
                 sin,
                 cos,
             }) => {
-                let shape = [nctx.into(), dh.clone() / 2];
+                let shape = if multimodal {
+                    [nctx.into(), dh.clone() / 4]
+                } else {
+                    [nctx.into(), dh.clone() / 2]
+                };
                 let sin = ctx.load_external("rope.sin", types::F32, shape.clone(), sin);
                 let cos = ctx.load_external("rope.cos", types::F32, shape, cos);
 
