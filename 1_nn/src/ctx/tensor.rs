@@ -1,15 +1,16 @@
 ﻿use super::Context;
 use crate::{NNError, macros::destruct};
 use arg::{Arg, Dim};
+use std::clone::Clone;
 use tensor::digit_layout::DigitLayout;
 
 /// 计算图层张量
-pub struct Tensor<T> {
+pub struct Tensor<T: Clone> {
     pub(super) idx: usize,
     pub(super) ctx: Context<T>,
 }
 
-impl<T> Clone for Tensor<T> {
+impl<T: Clone> Clone for Tensor<T> {
     fn clone(&self) -> Self {
         Self {
             idx: self.idx,
@@ -18,7 +19,7 @@ impl<T> Clone for Tensor<T> {
     }
 }
 
-impl<T> Tensor<T> {
+impl<T: Clone> Tensor<T> {
     #[inline]
     pub fn dt(&self) -> DigitLayout {
         self.meta().dt
@@ -34,7 +35,7 @@ impl<T> Tensor<T> {
     }
 }
 
-impl<T> Tensor<T> {
+impl<T: Clone> Tensor<T> {
     pub fn split(
         self,
         name: impl ToString,
@@ -101,6 +102,11 @@ pub struct TensorMeta {
 
 impl TensorMeta {
     pub fn new(dt: DigitLayout, shape: impl IntoIterator<Item = Dim>) -> Self {
+        let shape = shape.into_iter().collect::<Box<_>>();
+        Self { dt, shape }
+    }
+
+    pub fn load_external(dt: DigitLayout, shape: impl IntoIterator<Item = Dim>) -> Vec<Self> {
         let mut shape = shape.into_iter().collect::<Box<_>>();
         let group = dt.group_size();
         if group > 1 {
@@ -108,7 +114,17 @@ impl TensorMeta {
                 *dim = std::mem::replace(dim, Dim::from(0)) / group
             }
         }
-        Self { dt, shape }
+        match dt.to_string().as_str() {
+            // TODO: 量化类型构图时拆分多个tensor
+            "q4k" | "q6k" => vec![
+                Self {
+                    dt,
+                    shape: shape.clone(),
+                },
+                Self { dt, shape },
+            ],
+            _ => vec![Self { dt, shape }],
+        }
     }
 
     #[inline]

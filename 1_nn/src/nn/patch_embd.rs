@@ -4,14 +4,14 @@ use arg::{Arg, Dim};
 use tensor::digit_layout::DigitLayout;
 
 #[derive(Clone)]
-pub struct PatchEmbd<T> {
+pub struct PatchEmbd<T: Clone> {
     pub dt: DigitLayout,
     pub shape: [usize; 4],
     pub patch_embd: T,
     pub patch_embd1: T,
 }
 
-impl<T> PatchEmbd<T> {
+impl<T: Clone> PatchEmbd<T> {
     pub fn tensor_parallel(self, dist: Distribution) -> PatchEmbd<TPTensor<T>> {
         let Self {
             dt,
@@ -33,7 +33,7 @@ impl<T> PatchEmbd<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for PatchEmbd<T> {
+impl<T: Clone> NuralNetwork<T> for PatchEmbd<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,
@@ -50,17 +50,21 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
         } = self;
         let [m, ck, hk, wk] = shape.map(Dim::from);
         assert!(hk.eq(&wk));
-        let w = ctx.load_external(
-            "patch_embd",
-            dt,
-            [m.clone(), ck.clone(), hk.clone(), wk.clone()],
-            patch_embd,
+        destruct!(
+            [w] = ctx.load_external(
+                "patch_embd",
+                dt,
+                [m.clone(), ck.clone(), hk.clone(), wk.clone()],
+                patch_embd,
+            )?
         );
-        let w1 = ctx.load_external(
-            "patch_embd1",
-            dt,
-            [m.clone(), ck.clone(), hk.clone(), wk.clone()],
-            patch_embd1,
+        destruct!(
+            [w1] = ctx.load_external(
+                "patch_embd1",
+                dt,
+                [m.clone(), ck.clone(), hk.clone(), wk.clone()],
+                patch_embd1,
+            )?
         );
         let tensors = ctx
             .call("", "conv", Some(false.into()), [x.clone(), w])

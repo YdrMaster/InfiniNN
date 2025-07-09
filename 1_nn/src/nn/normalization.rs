@@ -2,7 +2,7 @@
 use tensor::digit_layout::DigitLayout;
 
 #[derive(Clone)]
-pub struct Normalization<T> {
+pub struct Normalization<T: Clone> {
     pub d: usize,
     pub epsilon: f64,
     pub items: Type<T>,
@@ -22,7 +22,7 @@ pub enum Type<T> {
     },
 }
 
-impl<T> Normalization<T> {
+impl<T: Clone> Normalization<T> {
     pub fn tensor_parallel(self) -> Normalization<TPTensor<T>> {
         let Self { d, epsilon, items } = self;
         Normalization {
@@ -49,7 +49,7 @@ impl<T> Normalization<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for Normalization<T> {
+impl<T: Clone> NuralNetwork<T> for Normalization<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,
@@ -60,7 +60,7 @@ impl<T> NuralNetwork<T> for Normalization<T> {
         let Self { d, epsilon, items } = self;
         let outputs = match items {
             Type::RmsNorm { dt, scale } => {
-                let scale = ctx.load_external("scale", dt, [d.into()], scale);
+                destruct!([scale] = ctx.load_external("scale", dt, [d.into()], scale)?);
                 ctx.call("", "rms-norm", Some(epsilon.into()), [x, scale])
             }
             Type::LayerNorm {
@@ -69,8 +69,8 @@ impl<T> NuralNetwork<T> for Normalization<T> {
                 dt_bias,
                 bias,
             } => {
-                let scale = ctx.load_external("scale", dt_scale, [d.into()], scale);
-                let bias = ctx.load_external("bias", dt_bias, [d.into()], bias);
+                destruct!([scale] = ctx.load_external("scale", dt_scale, [d.into()], scale)?);
+                destruct!([bias] = ctx.load_external("bias", dt_bias, [d.into()], bias)?);
                 ctx.call("", "layer-norm", Some(epsilon.into()), [x, scale, bias])
             }
         };
