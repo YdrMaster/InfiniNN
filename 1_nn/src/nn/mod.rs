@@ -1,5 +1,6 @@
 ﻿mod activation;
 mod attention;
+mod cogvlm;
 mod distribution;
 mod embedding;
 mod linear;
@@ -19,6 +20,7 @@ use crate::{
 
 pub use activation::Activation;
 pub use attention::{Attention, RoPE};
+pub use cogvlm::CogVLM;
 pub use distribution::{Distribution, TPAction, TPTensor, WeightType, weight_types};
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
