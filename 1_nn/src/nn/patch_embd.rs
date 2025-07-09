@@ -1,6 +1,6 @@
 use super::{Context, Distribution, NNError, NuralNetwork, TPTensor, Tensor, macros::destruct};
 use crate::macros::dims;
-use arg::{Arg, Dim};
+use arg::Dim;
 use tensor::digit_layout::DigitLayout;
 
 #[derive(Clone)]
@@ -73,169 +73,30 @@ impl<T> NuralNetwork<T> for PatchEmbd<T> {
             .unwrap();
         destruct!([image_embd] = tensors);
 
-        // reshape
-
         let hp = height.clone() / hk.clone(); // h patches
         let wp = width.clone() / wk.clone(); // w patches
-        // [n, m, hp, wp] -> [n, hp, wp, m]
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "transpose",
-                    Some(Arg::dict([(
-                        "perm".into(),
-                        Arg::arr([0, 2, 3, 1].map(Arg::from)),
-                    )])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        // [n, hp, wp, m] -> [n * hp/2, 2, wp/2, 2*m]
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "tile",
-                    Some(Arg::dict([
-                        ("axis".into(), Arg::int(1)),
-                        (
-                            "tiles".into(),
-                            Arg::arr([hp.clone() / 2, Dim::from(2)].map(Arg::from)),
-                        )
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "merge",
-                    Some(Arg::dict([
-                        ("start".into(), Arg::int(0)),
-                        ("len".into(), Arg::int(2),)
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "tile",
-                    Some(Arg::dict([
-                        ("axis".into(), Arg::int(2)),
-                        (
-                            "tiles".into(),
-                            Arg::arr([wp / 2, Dim::from(2)].map(Arg::from)),
-                        )
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "merge",
-                    Some(Arg::dict([
-                        ("start".into(), Arg::int(3)),
-                        ("len".into(), Arg::int(2),)
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        // [n * hp/2, 2, wp/2, 2*m] -> [n * hp/2, wp/2, 2, 2*m]
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "transpose",
-                    Some(Arg::dict([(
-                        "perm".into(),
-                        Arg::arr([0, 2, 1, 3].map(Arg::from)),
-                    )])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        // [n * hp/2, wp/2, 2, 2*m] -> [n, hp * wp, m]
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "tile",
-                    Some(Arg::dict([
-                        ("axis".into(), Arg::int(0)),
-                        (
-                            "tiles".into(),
-                            Arg::arr([n.clone(), hp.clone() / 2].map(Arg::from)),
-                        )
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "merge",
-                    Some(Arg::dict([
-                        ("start".into(), Arg::int(1)),
-                        ("len".into(), Arg::int(3),)
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "tile",
-                    Some(Arg::dict([
-                        ("axis".into(), Arg::int(2)),
-                        (
-                            "tiles".into(),
-                            Arg::arr([Dim::from(2), m.clone()].map(Arg::from)),
-                        )
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        destruct!(
-            [image_embd] = ctx
-                .call(
-                    "",
-                    "merge",
-                    Some(Arg::dict([
-                        ("start".into(), Arg::int(1)),
-                        ("len".into(), Arg::int(2),)
-                    ])),
-                    [image_embd],
-                )
-                .unwrap()
-        );
-        // [n, hp * wp, m] -> [n * patches, m]
-        let image_embd = ctx
-            .call(
-                "",
-                "merge",
-                Some(Arg::dict([
-                    ("start".into(), Arg::int(0)),
-                    ("len".into(), Arg::int(2)),
-                ])),
-                [image_embd],
-            )
-            .unwrap();
 
-        Ok((ctx, image_embd))
+        // transpose: [n, m, hp, wp] -> [n, hp, wp, m]
+        destruct!([image_embd] = image_embd.transpose("", vec![0, 2, 3, 1]));
+
+        // reshape: [n, hp, wp, m] -> [n * hp/2, 2, wp/2, 2*m]
+        destruct!([image_embd] = image_embd.tile("", 1, [hp.clone() / 2, Dim::from(2)]));
+        destruct!([image_embd] = image_embd.merge("", 0, 2));
+        destruct!([image_embd] = image_embd.tile("", 2, [wp / 2, Dim::from(2)]));
+        destruct!([image_embd] = image_embd.merge("", 3, 2));
+
+        // transpose: [n * hp/2, 2, wp/2, 2*m] -> [n * hp/2, wp/2, 2, 2*m]
+        destruct!([image_embd] = image_embd.transpose("", vec![0, 2, 1, 3]));
+
+        // reshape: [n * hp/2, wp/2, 2, 2*m] -> [n, hp * wp, m]
+        destruct!([image_embd] = image_embd.tile("", 0, [n.clone(), hp / 2]));
+        destruct!([image_embd] = image_embd.merge("", 1, 3));
+        destruct!([image_embd] = image_embd.tile("", 2, [Dim::from(2), m]));
+        destruct!([image_embd] = image_embd.merge("", 1, 2));
+
+        // merge-last: [n, hp * wp, m] -> [n * patches, m]
+        destruct!([image_embd] = image_embd.merge("", 0, 2));
+
+        Ok((ctx, vec![image_embd]))
     }
 }
