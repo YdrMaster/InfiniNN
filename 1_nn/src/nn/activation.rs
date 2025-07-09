@@ -6,7 +6,7 @@ pub enum Activation {
     GeLU,
 }
 
-impl<T> NuralNetwork<T> for Activation {
+impl<T: Clone> NuralNetwork<T> for Activation {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,

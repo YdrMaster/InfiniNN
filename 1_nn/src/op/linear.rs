@@ -28,9 +28,8 @@ impl Operator for Linear {
                 if k_x != k_w {
                     return Err(OpError::ShapeMismatch);
                 }
-                let m = m.clone();
                 let n = make_eq(&[n, _n]).ok_or(OpError::ShapeMismatch)?;
-                Ok(vec![TensorMeta::new(x.dt, [m, n])])
+                Ok(vec![TensorMeta::new(x.dt, [m.clone(), n])])
             }
             [x, residual, w] => {
                 dims!([_m, k_x] = x);

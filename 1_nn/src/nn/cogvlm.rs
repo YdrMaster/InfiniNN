@@ -4,14 +4,14 @@ use super::{
 };
 
 #[derive(Clone)]
-pub struct CogVLM<T> {
+pub struct CogVLM<T: Clone> {
     pub patch_embd: PatchEmbd<T>,
     pub vision_blks: Box<[TransformerBlk<T>]>,
     pub glu_proj: Mlp<T>,
     pub merger: Merger<T>,
 }
 
-impl<T> CogVLM<T> {
+impl<T: Clone> CogVLM<T> {
     pub fn tensor_parallel(self, dist: Distribution) -> CogVLM<TPTensor<T>> {
         let Self {
             patch_embd,
@@ -31,7 +31,7 @@ impl<T> CogVLM<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for CogVLM<T> {
+impl<T: Clone> NuralNetwork<T> for CogVLM<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,

@@ -32,7 +32,10 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
     let epsilon = meta![gguf => llm_attention_layer_norm_rms_epsilon; 1e-5];
     let dt_embd = gguf.tensors["token_embd.weight"].dt();
     let dt_norm = gguf.tensors["output_norm.weight"].dt();
-    let dt_linear = gguf.tensors["blk.0.attn_qkv.weight"].dt();
+    let qkv_separate = gguf.tensors.contains_key("blk.0.attn_q.weight");
+    let gate_up_separate = gguf.tensors.contains_key("blk.0.ffn_gate.weight");
+
+    let dt_output = gguf.tensors["blk.0.attn_output.weight"].dt();
     let theta = meta![gguf => llm_rope_freq_base; 1e4];
 
     let [sin, cos] = build_sin_cos(nctx, dh, theta);
@@ -63,12 +66,41 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                     ::nn::Attention {
                         nh,
                         nkvh,
-                        qkv: ::nn::Linear::new(
-                            dt_linear,
-                            [(nh + nkvh + nkvh) * dh, d],
-                            format!("blk.{iblk}.attn_qkv.weight"),
-                            dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
-                        ),
+                        qkv: {
+                            if qkv_separate {
+                                let q_weight = format!("blk.{iblk}.attn_q.weight");
+                                let k_weight = format!("blk.{iblk}.attn_k.weight");
+                                let v_weight = format!("blk.{iblk}.attn_v.weight");
+                                nn::QKVFormat::Separated {
+                                    q: ::nn::Linear::new(
+                                        gguf.tensors[q_weight.as_str()].dt(),
+                                        [nh * dh, d],
+                                        q_weight,
+                                        None,
+                                    ),
+                                    k: ::nn::Linear::new(
+                                        gguf.tensors[k_weight.as_str()].dt(),
+                                        [nkvh * dh, d],
+                                        k_weight,
+                                        None,
+                                    ),
+                                    v: ::nn::Linear::new(
+                                        gguf.tensors[v_weight.as_str()].dt(),
+                                        [nkvh * dh, d],
+                                        v_weight,
+                                        None,
+                                    ),
+                                }
+                            } else {
+                                let qkv_weight = format!("blk.{iblk}.attn_qkv.weight");
+                                nn::QKVFormat::Combined(::nn::Linear::new(
+                                    gguf.tensors[qkv_weight.as_str()].dt(),
+                                    [(nh + nkvh + nkvh) * dh, d],
+                                    qkv_weight,
+                                    dt_bias.map(|dt| (dt, format!("blk.{iblk}.attn_qkv.bias"))),
+                                ))
+                            }
+                        },
                         q_norm: if gguf
                             .tensors
                             .contains_key(format!("blk.{iblk}.attn_q_norm.weight").as_str())
@@ -106,7 +138,7 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                             cos: "cos_table".into(),
                         }),
                         output: ::nn::Linear::new(
-                            dt_linear,
+                            dt_output,
                             [d, nh * dh],
                             format!("blk.{iblk}.attn_output.weight"),
                             None,
@@ -121,19 +153,44 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                         },
                     },
                     ::nn::Mlp {
-                        up: ::nn::Linear::new(
-                            dt_linear,
-                            [di * 2, d],
-                            format!("blk.{iblk}.ffn_gate_up.weight"),
-                            None,
-                        ),
+                        up: {
+                            if gate_up_separate {
+                                let gate_weight = format!("blk.{iblk}.ffn_gate.weight");
+                                let up_weight = format!("blk.{iblk}.ffn_up.weight");
+                                nn::FFNUpFormat::Separated {
+                                    gate: ::nn::Linear::new(
+                                        gguf.tensors[gate_weight.as_str()].dt(),
+                                        [di, d],
+                                        gate_weight,
+                                        None,
+                                    ),
+                                    up: ::nn::Linear::new(
+                                        gguf.tensors[up_weight.as_str()].dt(),
+                                        [di, d],
+                                        up_weight,
+                                        None,
+                                    ),
+                                }
+                            } else {
+                                let gate_up_weight = format!("blk.{iblk}.ffn_gate_up.weight");
+                                nn::FFNUpFormat::Combined(::nn::Linear::new(
+                                    gguf.tensors[gate_up_weight.as_str()].dt(),
+                                    [di * 2, d],
+                                    gate_up_weight,
+                                    None,
+                                ))
+                            }
+                        },
                         act: ::nn::Activation::SwiGLU,
-                        down: ::nn::Linear::new(
-                            dt_linear,
-                            [d, di],
-                            format!("blk.{iblk}.ffn_down.weight"),
-                            None,
-                        ),
+                        down: {
+                            let down_weight = format!("blk.{iblk}.ffn_down.weight");
+                            ::nn::Linear::new(
+                                gguf.tensors[down_weight.as_str()].dt(),
+                                [d, di],
+                                down_weight,
+                                None,
+                            )
+                        },
                     },
                 )
             })
@@ -148,7 +205,7 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                 },
             },
             lm_head: ::nn::Linear::new(
-                dt_linear,
+                dt_embd,
                 [nvoc, d],
                 if gguf.tensors.contains_key("output.weight") {
                     "output.weight"

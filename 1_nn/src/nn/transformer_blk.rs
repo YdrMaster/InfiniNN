@@ -4,7 +4,7 @@
 };
 
 #[derive(Clone)]
-pub struct TransformerBlk<T> {
+pub struct TransformerBlk<T: Clone> {
     pub attn_norm: Normalization<T>,
     pub attn: Attention<T>,
     pub ffn_norm: Normalization<T>,
@@ -12,7 +12,7 @@ pub struct TransformerBlk<T> {
     pub all_reduce: bool,
 }
 
-impl<T> TransformerBlk<T> {
+impl<T: Clone> TransformerBlk<T> {
     #[inline]
     pub const fn new(
         attn_norm: Normalization<T>,
@@ -47,7 +47,7 @@ impl<T> TransformerBlk<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for TransformerBlk<T> {
+impl<T: Clone> NuralNetwork<T> for TransformerBlk<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,

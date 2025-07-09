@@ -19,21 +19,21 @@ use crate::{
 };
 
 pub use activation::Activation;
-pub use attention::{Attention, RoPE};
+pub use attention::{Attention, QKVFormat, RoPE};
 pub use cogvlm::CogVLM;
 pub use distribution::{Distribution, TPAction, TPTensor, WeightType, weight_types};
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
 pub use llama::LLaMA;
 pub use merger::Merger;
-pub use mlp::Mlp;
+pub use mlp::{FFNUpFormat, Mlp};
 pub use normalization::{Normalization, Type as NormType};
 pub use output_head::OutputHead;
 pub use patch_embd::PatchEmbd;
 pub use qw2vl_mmproj::Qwen2VLmmproj;
 pub use transformer_blk::TransformerBlk;
 
-pub trait NuralNetwork<T>: Sized {
+pub trait NuralNetwork<T: Clone>: Sized {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,

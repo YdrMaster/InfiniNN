@@ -2,13 +2,13 @@
 use crate::{Arg, Dim, Edge, NNError, NNGraph, NuralNetwork, ctx::name::Namespace, op::OpError};
 use graph::{GraphTopo, TopoNode};
 use mem::{External, Node, Operator};
-use std::{cell::RefCell, collections::HashMap, fmt::Display, ops::Range, rc::Rc};
+use std::{cell::RefCell, clone::Clone, collections::HashMap, fmt::Display, ops::Range, rc::Rc};
 use tensor::digit_layout::DigitLayout;
 
 pub struct Context<T>(Rc<RefCell<Internal<T>>>);
 
 impl GraphBuilder {
-    pub fn build<T, NN: NuralNetwork<T>>(
+    pub fn build<T: Clone, NN: NuralNetwork<T>>(
         &self,
         nn: NN,
         inputs: impl IntoIterator<Item = TensorMeta>,
@@ -18,7 +18,7 @@ impl GraphBuilder {
         Ok(ctx.into_graph(outputs))
     }
 
-    fn new_context<T>(
+    fn new_context<T: Clone>(
         &self,
         global_inputs: impl IntoIterator<Item = TensorMeta>,
     ) -> (Context<T>, Vec<Tensor<T>>) {
@@ -72,7 +72,7 @@ struct Tensor_<T> {
     external: Option<T>,
 }
 
-impl<T> Context<T> {
+impl<T: Clone> Context<T> {
     pub fn path(&self) -> String {
         self.0.borrow().namespace.top().path().to_string()
     }
@@ -97,23 +97,28 @@ impl<T> Context<T> {
         dt: DigitLayout,
         shape: impl IntoIterator<Item = Dim>,
         item: T,
-    ) -> Tensor<T> {
+    ) -> Result<Vec<Tensor<T>>, NNError> {
         let mut internal = self.0.borrow_mut();
 
         let top = internal.namespace.top_mut();
         assert!(top.tensor.check(&name));
         let name = format!("{}.{}", top.path(), name);
 
-        let idx = internal.tensors.len();
-        internal.tensors.push(Tensor_ {
-            name,
-            meta: TensorMeta::new(dt, shape),
-            external: Some(item),
-        });
-        Tensor {
-            idx,
-            ctx: Context(self.0.clone()),
+        let external_meta = TensorMeta::load_external(dt, shape);
+        let mut tensors = Vec::with_capacity(external_meta.len());
+        for meta in external_meta {
+            let idx = internal.tensors.len();
+            internal.tensors.push(Tensor_ {
+                name: name.clone(),
+                meta,
+                external: Some(item.clone()),
+            });
+            tensors.push(Tensor {
+                idx,
+                ctx: Context(self.0.clone()),
+            });
         }
+        Ok(tensors)
     }
 
     pub fn bind_external(&mut self, tensor: Tensor<T>, item: T) {
@@ -188,7 +193,7 @@ impl<T> Context<T> {
     }
 }
 
-impl<T> Context<T> {
+impl<T: Clone> Context<T> {
     pub(super) fn clone(&self) -> Self {
         Self(self.0.clone())
     }

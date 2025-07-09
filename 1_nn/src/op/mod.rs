@@ -10,6 +10,8 @@ pub mod linear;
 pub mod merge;
 pub mod mrope;
 pub mod normalization;
+pub mod quant_embedding;
+pub mod quant_linear;
 pub mod rope;
 pub mod split;
 pub mod tile;

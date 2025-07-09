@@ -4,12 +4,12 @@
 };
 
 #[derive(Clone)]
-pub struct OutputHead<T> {
+pub struct OutputHead<T: Clone> {
     pub out_norm: Normalization<T>,
     pub lm_head: Linear<T>,
 }
 
-impl<T> OutputHead<T> {
+impl<T: Clone> OutputHead<T> {
     pub fn tensor_parallel(self) -> OutputHead<TPTensor<T>> {
         let Self { out_norm, lm_head } = self;
         OutputHead {
@@ -19,7 +19,7 @@ impl<T> OutputHead<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for OutputHead<T> {
+impl<T: Clone> NuralNetwork<T> for OutputHead<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,

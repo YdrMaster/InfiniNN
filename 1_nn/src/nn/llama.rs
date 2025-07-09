@@ -4,13 +4,13 @@
 };
 
 #[derive(Clone)]
-pub struct LLaMA<T> {
+pub struct LLaMA<T: Clone> {
     pub embedding: Embedding<T>,
     pub blks: Box<[TransformerBlk<T>]>,
     pub output_head: Option<OutputHead<T>>,
 }
 
-impl<T> LLaMA<T> {
+impl<T: Clone> LLaMA<T> {
     pub fn tensor_parallel(self, dist: Distribution) -> LLaMA<TPTensor<T>> {
         let Self {
             embedding,
@@ -28,7 +28,7 @@ impl<T> LLaMA<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for LLaMA<T> {
+impl<T: Clone> NuralNetwork<T> for LLaMA<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,

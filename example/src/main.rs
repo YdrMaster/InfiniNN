@@ -29,6 +29,8 @@ fn main() {
         .register_op("swiglu", op::activation::SwiGLU)
         .register_op("gelu", op::activation::GeLU)
         .register_op("linear", op::linear::Linear)
+        .register_op("quant-embedding", op::quant_embedding::QuantEmbedding)
+        .register_op("quant-linear", op::quant_linear::QuantLinear)
         .register_op("rope", op::rope::Rope)
         .register_op("concat", op::concat::Concat)
         .build(

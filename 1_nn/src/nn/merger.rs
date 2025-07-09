@@ -4,12 +4,12 @@ use super::{
 };
 
 #[derive(Clone)]
-pub struct Merger<T> {
+pub struct Merger<T: Clone> {
     pub post_norm: Normalization<T>,
     pub mlp: Mlp<T>,
 }
 
-impl<T> Merger<T> {
+impl<T: Clone> Merger<T> {
     pub fn tensor_parallel(self, dist: Distribution) -> Merger<TPTensor<T>> {
         let Self { post_norm, mlp } = self;
         Merger {
@@ -19,7 +19,7 @@ impl<T> Merger<T> {
     }
 }
 
-impl<T> NuralNetwork<T> for Merger<T> {
+impl<T: Clone> NuralNetwork<T> for Merger<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,
