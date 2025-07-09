@@ -3,7 +3,7 @@
     macros::*,
 };
 use crate::{
-    Arg, Dim, TPAction,
+    TPAction,
     weight_types::{AttnQKV, RowTPWeight},
 };
 use tensor::digit_layout::types;
@@ -85,89 +85,23 @@ impl<T> NuralNetwork<T> for Attention<T> {
         dims!([_, dqkv] = x);
         let dh = dqkv.clone() / (nh + nkvh + nkvh);
 
-        destruct!(
-            [q, k, v] = ctx.call(
-                "split-qkv",
-                "split",
-                Some(Arg::dict([
-                    ("axis".into(), Arg::int(1)),
-                    (
-                        "parts".into(),
-                        Arg::arr([Arg::dim(nh), Arg::dim(nkvh), Arg::dim(nkvh)])
-                    )
-                ])),
-                [x],
-            )?
-        );
+        destruct!([q, k, v] = x.split("split-qkv", 1, [nh.into(), nkvh.into(), nkvh.into()])?);
 
         // Apply normalization to q and k if they exist
         let q = match q_norm {
             Some(norm) => {
-                destruct!(
-                    [q] = ctx.call(
-                        "",
-                        "tile",
-                        Some(Arg::dict([
-                            ("axis".into(), Arg::int(1)),
-                            (
-                                "tile".into(),
-                                Arg::arr([Dim::from(nh), dh.clone()].map(Arg::from))
-                            ),
-                        ])),
-                        [q],
-                    )?
-                );
+                let q = q.tile("", 1, [nh.into(), dh.clone()])?;
                 destruct!([q] = ctx.trap("attn-q-norm", norm, [q])?);
-
-                destruct!(
-                    [q] = ctx
-                        .call(
-                            "",
-                            "merge",
-                            Some(Arg::dict([
-                                ("start".into(), Arg::int(1)),
-                                ("len".into(), Arg::int(2),)
-                            ])),
-                            [q],
-                        )
-                        .unwrap()
-                );
-                q
+                q.merge("", 1, 2)?
             }
             None => q,
         };
 
         let k = match k_norm {
             Some(norm) => {
-                destruct!(
-                    [k] = ctx.call(
-                        "",
-                        "tile",
-                        Some(Arg::dict([
-                            ("axis".into(), Arg::int(1)),
-                            (
-                                "tile".into(),
-                                Arg::arr([Dim::from(nkvh), dh.clone()].map(Arg::from))
-                            ),
-                        ])),
-                        [k],
-                    )?
-                );
+                let k = k.tile("", 1, [nkvh.into(), dh.clone()])?;
                 destruct!([k] = ctx.trap("attn-k-norm", norm, [k])?);
-                destruct!(
-                    [k] = ctx
-                        .call(
-                            "",
-                            "merge",
-                            Some(Arg::dict([
-                                ("start".into(), Arg::int(1)),
-                                ("len".into(), Arg::int(2),)
-                            ])),
-                            [k],
-                        )
-                        .unwrap()
-                );
-                k
+                k.merge("", 1, 2)?
             }
             None => k,
         };

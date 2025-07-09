@@ -1,5 +1,4 @@
 ﻿use super::{Context, NNError, NuralNetwork, Tensor, macros::*};
-use crate::Arg;
 
 #[derive(Clone, Copy)]
 pub enum Activation {
@@ -19,17 +18,7 @@ impl<T> NuralNetwork<T> for Activation {
         let outputs = match self {
             Self::SwiGLU => {
                 let d = d.clone() / 2;
-                destruct!(
-                    [gate, up] = ctx.call(
-                        "split-gate-up",
-                        "split",
-                        Some(Arg::dict([
-                            ("axis".into(), Arg::int(1)),
-                            ("parts".into(), Arg::arr([d.clone(), d].map(Arg::from))),
-                        ])),
-                        [x],
-                    )?
-                );
+                destruct!([gate, up] = x.split("split-gate-up", 1, [d.clone(), d])?);
                 ctx.call("", "swiglu", None, [gate, up])
             }
             Self::GeLU => {
