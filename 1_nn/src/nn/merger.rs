@@ -2,6 +2,8 @@ use super::{
     Context, Distribution, Mlp, NNError, Normalization, NuralNetwork, TPTensor, Tensor,
     macros::destruct,
 };
+use crate::macros::dims;
+use arg::Dim;
 
 #[derive(Clone)]
 pub struct Merger<T> {
@@ -30,8 +32,14 @@ impl<T> NuralNetwork<T> for Merger<T> {
         destruct!([x] = inputs);
         let tensors = ctx.trap("post-norm", post_norm, [x])?;
         destruct!([x] = tensors);
-        let tensors = ctx.trap("mlp", mlp, [x])?;
 
-        Ok((ctx, tensors))
+        // 每 4 个图像特征合为 1 个，x: [np, d] -> [np/4, 4*d]
+        dims!([np, _d] = x);
+        destruct!([x] = x.tile("", 0, [np.clone() / 4, Dim::from(4)]));
+        destruct!([x] = x.merge("", 1, 2));
+
+        let output = ctx.trap("mlp", mlp, [x])?;
+
+        Ok((ctx, output))
     }
 }
