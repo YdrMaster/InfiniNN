@@ -74,35 +74,6 @@ pub(crate) fn tile<T>(node: &mut Node, topo: NodeRef, edges: &mut [Edge<T>]) {
     }
 }
 
-pub(crate) fn merge<T>(node: &mut Node, topo: NodeRef, edges: &mut [Edge<T>]) {
-    let NodeRef { inputs, outputs } = topo;
-    // merge 应该只有一个输入
-    let &[input] = inputs else { unreachable!() };
-    let input = edges[input].clone();
-    // 提取属性
-    let Some(Arg::Dict(arg)) = &node.value.arg else {
-        unreachable!()
-    };
-    let start = arg["start"].to_usize();
-    let len = arg["len"].to_usize();
-    // 计算步长变换
-    assert_eq!(outputs.len(), 1); // merge 应该只有一个输出
-    for output in outputs {
-        let output = &mut edges[output];
-        // 暂时不支持 output 是外部的，因为外部 output 需要添加 rearrange kernel
-        assert!(matches!(&**output.get(), Info::Internal(_)));
-        // 用 merge_be 实现，并替换原来的边
-        *output = input
-            .clone()
-            .transform(|layout| layout.merge_be(start, len).unwrap());
-    }
-    // 算子擦除
-    node.value = Operator {
-        name: "empty".to_string(),
-        arg: None,
-    }
-}
-
 pub(crate) fn transpose<T>(node: &mut Node, topo: NodeRef, edges: &mut [Edge<T>]) {
     let NodeRef { inputs, outputs } = topo;
     // transpose 应该只有一个输入
