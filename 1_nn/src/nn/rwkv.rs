@@ -1,20 +1,20 @@
 use super::{
-    Context, Distribution, Embedding, NNError, NuralNetwork, TPTensor, Tensor, RWKVBlock,
+    Context, Distribution, Embedding, NNError, NuralNetwork, RWKVBlock, TPTensor, Tensor,
     macros::destruct, output_head::OutputHead,
 };
 
 #[derive(Clone)]
 pub struct RWKV<T> {
-    pub embedding: Embedding<T>,        // 词嵌入层（与LLaMA相同）
-    pub blks: Box<[RWKVBlock<T>]>,     // RWKV块序列（替代TransformerBlk）
+    pub embedding: Embedding<T>,            // 词嵌入层（与LLaMA相同）
+    pub blks: Box<[RWKVBlock<T>]>,          // RWKV块序列（替代TransformerBlk）
     pub output_head: Option<OutputHead<T>>, // 输出头（与LLaMA相同）
 }
 
 #[derive(Clone)]
 pub struct RWKVBlock<T> {
-    pub ln1: Normalization<T>,     // 第一个归一化层
-    pub time_mix: TimeMix<T>,      // 时间混合（注意力机制的替代）
-    pub ln2: Normalization<T>,     // 第二个归一化层
+    pub ln1: Normalization<T>,      // 第一个归一化层
+    pub time_mix: TimeMix<T>,       // 时间混合（注意力机制的替代）
+    pub ln2: Normalization<T>,      // 第二个归一化层
     pub channel_mix: ChannelMix<T>, // 通道混合（FFN的替代）
 }
 
@@ -71,18 +71,20 @@ impl<T> NuralNetwork<T> for RWKV<T> {
         destruct!([x] = ctx.trap("embedding", embedding, [tokens])?);
 
         // RWKV 块处理 - 与 LLaMA 的关键差异
-        let (x, new_state) = blks.into_iter().enumerate().try_fold(
-            (x, state), 
-            |(x, state), (i, blk)| {
-                // RWKV 块需要状态输入和输出
-                destruct!([x, layer_state] = ctx.trap(
-                    format!("blk{i}"), 
-                    blk, 
-                    [x, state.slice(i)] // 传入当前层状态
-                )?);
-                Ok((x, state.update_layer(i, layer_state))) // 更新状态
-            }
-        )?;
+        let (x, new_state) =
+            blks.into_iter()
+                .enumerate()
+                .try_fold((x, state), |(x, state), (i, blk)| {
+                    // RWKV 块需要状态输入和输出
+                    destruct!(
+                        [x, layer_state] = ctx.trap(
+                            format!("blk{i}"),
+                            blk,
+                            [x, state.slice(i)] // 传入当前层状态
+                        )?
+                    );
+                    Ok((x, state.update_layer(i, layer_state))) // 更新状态
+                })?;
 
         // 输出处理
         let x = if let Some(OutputHead { out_norm, lm_head }) = output_head {
