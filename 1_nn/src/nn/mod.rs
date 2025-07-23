@@ -11,6 +11,7 @@ mod normalization;
 mod output_head;
 mod patch_embd;
 mod qw2vl_mmproj;
+mod rwkv;
 mod transformer_blk;
 
 use crate::{
