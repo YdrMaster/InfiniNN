@@ -91,6 +91,21 @@ impl<T> Tensor<T> {
         );
         Ok(ans)
     }
+
+    pub fn transpose(self, name: impl ToString, perm: Vec<usize>) -> Result<Tensor<T>, NNError> {
+        destruct!(
+            [ans] = self.ctx.clone().call(
+                name,
+                "transpose",
+                Some(Arg::dict([(
+                    "perm".into(),
+                    Arg::arr(perm.into_iter().map(|p| Arg::from(p as u64)))
+                ),])),
+                [self],
+            )?
+        );
+        Ok(ans)
+    }
 }
 
 #[derive(Clone)]

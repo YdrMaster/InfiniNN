@@ -1,6 +1,7 @@
 ﻿use crate::{Arg, TensorMeta};
 
 pub mod activation;
+pub mod add;
 pub mod all_reduce;
 pub mod attention;
 pub mod concat;
