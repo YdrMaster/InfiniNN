@@ -1,6 +1,7 @@
 use super::{
-    Context, Distribution, Embedding, NNError, NuralNetwork, TPTensor, Tensor, Normalization, Linear,
-    macros::destruct, output_head::OutputHead, TPAction, weight_types::RowTPWeight,
+    Context, Distribution, Embedding, Linear, NNError, Normalization, NuralNetwork, TPAction,
+    TPTensor, Tensor, macros::destruct, output_head::OutputHead, rwkv_state::RWKVState,
+    weight_types::RowTPWeight,
 };
 
 #[derive(Clone)]
@@ -63,12 +64,19 @@ impl<T> NuralNetwork<T> for RWKVBlock<T> {
             channel_mix,
         } = self;
 
-        destruct!([x, state] = inputs); // 输入包括状态张量
+        destruct!([x, state] = inputs);
+        let residual = x.clone();
+
         destruct!([x] = ctx.trap("ln1", ln1, [x])?);
-        destruct!([x] = ctx.trap("time-mix", time_mix, [x, state])?);
+        destruct!([x, new_state] = ctx.trap("time-mix", time_mix, [x, state])?);
+        let x = ctx.call("add", "add", None, [x, residual])?.remove(0);
+
+        let residual = x.clone();
         destruct!([x] = ctx.trap("ln2", ln2, [x])?);
-        destruct!([x] = ctx.trap("channel-mix", channel_mix, [x])?);
-        Ok((ctx, vec![x, state])) // 返回新的状态张量
+        destruct!([x] = ctx.trap("channel-mix", channel_mix, [x, new_state.clone()])?);
+        let x = ctx.call("add", "add", None, [x, residual])?.remove(0);
+
+        Ok((ctx, vec![x, new_state]))
     }
 }
 
@@ -77,7 +85,6 @@ pub struct TimeMix<T> {
     pub k: Linear<T>,
     pub v: Linear<T>,
     pub r: Linear<T>,
-    // 可能还需要时间权重参数
 }
 
 impl<T> TimeMix<T> {
@@ -102,12 +109,18 @@ impl<T> NuralNetwork<T> for TimeMix<T> {
         destruct!([x, state] = inputs);
 
         // 混合当前输入 x 和上一个状态 state
-        let xk = ctx.call("mix_k", "mix", None, [x.clone(), state.clone()])?.remove(0);
-        let xv = ctx.call("mix_v", "mix", None, [x.clone(), state.clone()])?.remove(0);
-        let xr = ctx.call("mix_r", "mix", None, [x.clone(), state.clone()])?.remove(0);
+        let xk = ctx
+            .call("mix_k", "mix", None, [x.clone(), state.clone()])?
+            .remove(0);
+        let xv = ctx
+            .call("mix_v", "mix", None, [x.clone(), state.clone()])?
+            .remove(0);
+        let xr = ctx
+            .call("mix_r", "mix", None, [x.clone(), state])?
+            .remove(0);
 
         // 线性层：k, v, r
-        destruct!([k_out] = ctx.trap("linear-k", k, [xk])?);
+        destruct!([_k_out] = ctx.trap("linear-k", k, [xk])?);
         destruct!([v_out] = ctx.trap("linear-v", v, [xv])?);
         destruct!([r_out] = ctx.trap("linear-r", r, [xr])?);
 
@@ -149,14 +162,14 @@ impl<T> NuralNetwork<T> for ChannelMix<T> {
         destruct!([x, state] = inputs);
 
         destruct!([r_out] = ctx.trap("linear-r", r, [x.clone()])?);
-        destruct!([k_out] = ctx.trap("linear-k", k, [x.clone()])?);
+        destruct!([k_out] = ctx.trap("linear-k", k, [x])?);
 
         let r_act = ctx.call("sigmoid", "sigmoid", None, [r_out])?.remove(0);
         let gated = ctx.call("mul", "mul", None, [r_act, k_out])?.remove(0);
 
         destruct!([out] = ctx.trap("linear-v", v, [gated])?);
 
-        Ok((ctx, vec![out, state])) // 返回 x（即 channel mix 输出）和原始 state
+        Ok((ctx, vec![out, state]))
     }
 }
 
@@ -192,28 +205,25 @@ impl<T> NuralNetwork<T> for RWKV<T> {
 
         let mut inputs = inputs.into_iter();
         let tokens = inputs.next().unwrap();
-        let mut state = inputs.next().unwrap(); // RWKV 状态张量
+        let state_tensor = inputs.next().unwrap();
 
-        // 词嵌入
+        let n_layers = blks.len();
+        let state = RWKVState::from_tensor(state_tensor, n_layers)?;
+
         destruct!([x] = ctx.trap("embedding", embedding, [tokens])?);
 
-        // RWKV 块处理
         let (x, new_state) =
             blks.into_iter()
                 .enumerate()
                 .try_fold((x, state), |(x, state), (i, blk)| {
-                    // RWKV 块需要状态输入和输出
+                    let (layer_state, builder) = state.into_layer(i);
                     destruct!(
-                        [x, layer_state] = ctx.trap(
-                            format!("blk{i}"),
-                            blk,
-                            [x, state.slice(i)] // 传入当前层状态
-                        )?
+                        [x, new_layer_state] =
+                            ctx.trap(format!("blk{i}"), blk, [x, layer_state])?
                     );
-                    Ok((x, state.update_layer(i, layer_state))) // 更新状态
+                    Ok((x, builder.with_layer(new_layer_state)))
                 })?;
 
-        // 输出处理
         let x = if let Some(OutputHead { out_norm, lm_head }) = output_head {
             let out_idx = inputs.next().unwrap();
             destruct!([x] = ctx.call("out-gather", "embedding", None, [x, out_idx])?);
@@ -224,6 +234,7 @@ impl<T> NuralNetwork<T> for RWKV<T> {
             x
         };
 
-        Ok((ctx, vec![x, new_state])) // 返回新状态
+        let final_state = new_state.to_tensor(&mut ctx)?;
+        Ok((ctx, vec![x, final_state]))
     }
 }
