@@ -12,7 +12,6 @@ mod output_head;
 mod patch_embd;
 mod qw2vl_mmproj;
 mod rwkv;
-mod rwkv_state;
 mod transformer_blk;
 
 use crate::{
@@ -34,7 +33,6 @@ pub use output_head::OutputHead;
 pub use patch_embd::PatchEmbd;
 pub use qw2vl_mmproj::Qwen2VLmmproj;
 pub use rwkv::{RWKV, RWKVBlock};
-pub use rwkv_state::{RWKVState, RWKVStateBuilder};
 pub use transformer_blk::TransformerBlk;
 
 pub trait NuralNetwork<T>: Sized {

@@ -11,6 +11,7 @@ pub mod merge;
 pub mod mrope;
 pub mod normalization;
 pub mod rope;
+pub mod rwkv;
 pub mod split;
 pub mod tile;
 pub mod transpose;
