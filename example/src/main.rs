@@ -23,6 +23,8 @@ fn main() {
         .register_op("rms-norm", op::normalization::RmsNorm)
         .register_op("layer-norm", op::normalization::LayerNorm)
         .register_op("attention", op::attention::Attention)
+        .register_op("rwkv-time-mix", op::rwkv::RWKVTimeMix)
+        .register_op("rwkv-channel-mix", op::rwkv::RWKVChannelMix)
         .register_op("split", op::split::Split)
         .register_op("tile", op::tile::Tile)
         .register_op("merge", op::merge::Merge)

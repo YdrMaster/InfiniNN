@@ -1,4 +1,4 @@
-﻿mod activation;
+mod activation;
 mod attention;
 mod cogvlm;
 mod distribution;
@@ -11,6 +11,7 @@ mod normalization;
 mod output_head;
 mod patch_embd;
 mod qw2vl_mmproj;
+mod rwkv;
 mod transformer_blk;
 
 use crate::{
@@ -31,6 +32,7 @@ pub use normalization::{Normalization, Type as NormType};
 pub use output_head::OutputHead;
 pub use patch_embd::PatchEmbd;
 pub use qw2vl_mmproj::Qwen2VLmmproj;
+pub use rwkv::{RWKV, RWKVBlock};
 pub use transformer_blk::TransformerBlk;
 
 pub trait NuralNetwork<T>: Sized {
