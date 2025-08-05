@@ -85,22 +85,25 @@ pub(crate) fn merge<T>(node: &mut Node, topo: NodeRef, edges: &mut [Edge<T>]) {
     };
     let start = arg["start"].to_usize();
     let len = arg["len"].to_usize();
-    // 计算步长变换
-    assert_eq!(outputs.len(), 1); // merge 应该只有一个输出
-    for output in outputs {
-        let output = &mut edges[output];
-        // 暂时不支持 output 是外部的，因为外部 output 需要添加 rearrange kernel
-        assert!(matches!(&**output.get(), Info::Internal(_)));
-        // 用 merge_be 实现，并替换原来的边
-        *output = input
-            .clone()
-            .transform(|layout| layout.merge_be(start, len).unwrap());
+    if let Some(layout) = input.layout().merge_be(start, len) {
+        // 可以合并则 input 连续，做算子擦除
+        // 计算步长变换
+        assert_eq!(outputs.len(), 1); // merge 应该只有一个输出
+        for output in outputs {
+            let output = &mut edges[output];
+            // 暂时不支持 output 是外部的，因为外部 output 需要添加 rearrange kernel
+            assert!(matches!(&**output.get(), Info::Internal(_)));
+            // 用 merge_be 实现，并替换原来的边
+            *output = input.clone().transform(|_| layout.clone());
+        }
+        // 算子擦除
+        node.value = Operator {
+            name: "empty".to_string(),
+            arg: None,
+        };
     }
-    // 算子擦除
-    node.value = Operator {
-        name: "empty".to_string(),
-        arg: None,
-    }
+
+    // 不能合并则 input 不连续，不做擦除; 在 llama.cu 里 merge 会换成 rearrange 把 input 变连续
 }
 
 pub(crate) fn transpose<T>(node: &mut Node, topo: NodeRef, edges: &mut [Edge<T>]) {
