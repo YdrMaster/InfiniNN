@@ -3,6 +3,7 @@
 #[derive(Clone, Copy)]
 pub enum Activation {
     SwiGLU,
+    SiLU,
     GeLU,
 }
 
@@ -21,6 +22,7 @@ impl<T> NuralNetwork<T> for Activation {
                 destruct!([gate, up] = x.split("split-gate-up", 1, [d.clone(), d])?);
                 ctx.call("", "swiglu", None, [gate, up])
             }
+            Self::SiLU => ctx.call("", "silu", None, [x]),
             Self::GeLU => {
                 // format
                 ctx.call("", "gelu", None, [x])

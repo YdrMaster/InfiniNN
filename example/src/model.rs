@@ -4,7 +4,7 @@
     meta,
 };
 use ggus::GGufMetaMapExt;
-use nn::Tensor;
+use nn::{SelectiveSSM, Tensor};
 use tensor::digit_layout::types;
 
 pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
@@ -136,6 +136,113 @@ pub fn init(gguf: &mut GGufModel) -> nn::LLaMA<String> {
                         ),
                     },
                 )
+            })
+            .collect(),
+        output_head: Some(::nn::OutputHead {
+            out_norm: ::nn::Normalization {
+                d,
+                epsilon: epsilon as _,
+                items: ::nn::NormType::RmsNorm {
+                    dt: dt_norm,
+                    scale: "output_norm.weight".into(),
+                },
+            },
+            lm_head: ::nn::Linear::new(
+                dt_linear,
+                [nvoc, d],
+                if gguf.tensors.contains_key("output.weight") {
+                    "output.weight"
+                } else {
+                    "token_embd.weight"
+                }
+                .into(),
+                None,
+            ),
+        }),
+    }
+}
+
+#[allow(dead_code)]
+pub fn init_mamba(gguf: &mut GGufModel) -> nn::Mamba<String> {
+    let nvoc = meta![gguf => tokenizer_ggml_tokens].len();
+    let nblk = meta![gguf => llm_block_count];
+    let d = meta![gguf => llm_embedding_length];
+    let epsilon = meta![gguf => llm_attention_layer_norm_rms_epsilon; 1e-5];
+    let dt_embd = gguf.tensors["token_embd.weight"].dt();
+    let dt_norm = gguf.tensors["output_norm.weight"].dt();
+    let dt_linear = gguf.tensors["blk.0.ssm_in.weight"].dt();
+
+    let d_kernel = 4;
+    let d_inner = 5120;
+    let d_state = 16;
+    let dt_rank = 160; // ggus todo: mamba.ssm.
+
+    ::nn::Mamba {
+        embedding: ::nn::Embedding {
+            dt: dt_embd,
+            d,
+            wte: ::nn::Table {
+                row: nvoc,
+                weight: "token_embd.weight".to_string(),
+            },
+            wpe: None,
+        },
+        blks: (0..nblk)
+            .map(|iblk| ::nn::MambaBlock {
+                mamba_norm: nn::Normalization {
+                    d,
+                    epsilon: epsilon as _,
+                    items: ::nn::NormType::RmsNorm {
+                        dt: dt_norm,
+                        scale: format!("blk.{iblk}.attn_norm.weight"),
+                    },
+                },
+                mamba_mixer: nn::MambaMixer {
+                    d_inner,
+                    in_proj: nn::Linear {
+                        dt: dt_embd,
+                        shape: [d_inner * 2, d],
+                        weight: format!("blk.{iblk}.ssm_in.weight"),
+                        bias: None,
+                        allow_residual: false,
+                    },
+                    causal_conv1d: nn::CausalConv1d::new(
+                        dt_norm,
+                        format!("blk.{iblk}.ssm_conv1d.weight"),
+                        format!("blk.{iblk}.ssm_conv1d.bias"),
+                        d_kernel,
+                        d_inner,
+                    ),
+                    act: nn::Activation::SiLU,
+                    selective_ssm: SelectiveSSM {
+                        dt: dt_norm,
+                        d_state,
+                        dt_rank,
+                        dt_proj: nn::Linear {
+                            dt: dt_linear,
+                            shape: [d_inner, dt_rank],
+                            weight: format!("blk.{iblk}.ssm_dt.weight"),
+                            bias: Some(dt_linear).map(|dt| (dt, format!("blk.{iblk}.ssm_dt.bias"))),
+                            allow_residual: false,
+                        },
+                        x_proj: nn::Linear {
+                            dt: dt_linear,
+                            shape: [dt_rank + d_state * 2, d_inner],
+                            weight: format!("blk.{iblk}.ssm_x.weight"),
+                            bias: None,
+                            allow_residual: false,
+                        },
+                        a: format!("blk.{iblk}.ssm_a"),
+                        d: format!("blk.{iblk}.ssm_d"),
+                    },
+                    out_proj: nn::Linear {
+                        dt: dt_linear,
+                        shape: [d, d_inner],
+                        weight: format!("blk.{iblk}.ssm_out.weight"),
+                        bias: None,
+                        allow_residual: true,
+                    },
+                },
             })
             .collect(),
         output_head: Some(::nn::OutputHead {

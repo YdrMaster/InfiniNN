@@ -5,6 +5,7 @@ mod distribution;
 mod embedding;
 mod linear;
 mod llama;
+mod mamba;
 mod merger;
 mod mlp;
 mod normalization;
@@ -26,6 +27,7 @@ pub use distribution::{Distribution, TPAction, TPTensor, WeightType, weight_type
 pub use embedding::{Embedding, Table};
 pub use linear::Linear;
 pub use llama::LLaMA;
+pub use mamba::{CausalConv1d, Mamba, MambaBlock, MambaMixer, SelectiveSSM};
 pub use merger::Merger;
 pub use mlp::Mlp;
 pub use normalization::{Normalization, Type as NormType};
