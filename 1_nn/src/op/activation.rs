@@ -21,6 +21,20 @@ impl Operator for SwiGLU {
         Ok(vec![TensorMeta::new(gate.dt, [n_up, d_up])])
     }
 }
+pub struct SiLU;
+
+impl Operator for SiLU {
+    fn infer(&self, inputs: &[TensorMeta], args: Option<&Arg>) -> Result<Vec<TensorMeta>, OpError> {
+        if args.is_some() {
+            return Err(OpError::ArgError);
+        }
+
+        destruct!([x] = inputs);
+        dims!([_n, _d] = x);
+
+        Ok(vec![x.clone()])
+    }
+}
 
 pub struct GeLU;
 

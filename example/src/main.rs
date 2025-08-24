@@ -15,6 +15,7 @@ fn main() {
     let maps = map_files(path);
     let mut gguf = GGufModel::read(maps.iter().map(|x| &**x));
     let model = model::init(&mut gguf);
+    // let model = model::init_mamba(&mut gguf);
     timer.push("init");
 
     // 构造计算图
@@ -23,16 +24,20 @@ fn main() {
         .register_op("rms-norm", op::normalization::RmsNorm)
         .register_op("layer-norm", op::normalization::LayerNorm)
         .register_op("attention", op::attention::Attention)
+        .register_op("mamba-causal-conv1d", op::mamba::CausalConv1d)
+        .register_op("mamba-selective-scan", op::mamba::SelectiveScan)
         .register_op("rwkv-time-mix", op::rwkv::RWKVTimeMix)
         .register_op("rwkv-channel-mix", op::rwkv::RWKVChannelMix)
         .register_op("split", op::split::Split)
         .register_op("tile", op::tile::Tile)
         .register_op("merge", op::merge::Merge)
         .register_op("swiglu", op::activation::SwiGLU)
+        .register_op("silu", op::activation::SiLU)
         .register_op("gelu", op::activation::GeLU)
         .register_op("linear", op::linear::Linear)
         .register_op("rope", op::rope::Rope)
         .register_op("concat", op::concat::Concat)
+        .register_op("element-mul", op::element_mul::ElementMul)
         .build(
             model,
             [
