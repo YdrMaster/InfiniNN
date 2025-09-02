@@ -17,6 +17,7 @@ impl<T> Mlp<T> {
         Mlp {
             up: up.parallel(match act {
                 Activation::SwiGLU => TPAction::new(FfnGateUp, dist),
+                Activation::SiLU => TPAction::new(FfnGateUp, dist),
                 Activation::GeLU => TPAction::new(ColumnTPWeight, dist),
             }),
             act,
